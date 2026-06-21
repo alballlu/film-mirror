@@ -20,12 +20,14 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 22
+
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - run: npm ci
       - run: npm run build
-
-      - uses: actions/configure-pages@v4
 
       - uses: actions/upload-pages-artifact@v3
         with:
