@@ -987,11 +987,43 @@ button, .category-tab, .home-card, .movie-card {
 }
 
 .poster-area {
-  height: 180px;
+  position: relative;
+  max-width: 200px;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, #2e3749 0%, #323b4e 50%, #283140 100%);
+  border-radius: var(--radius-sm);
+}
+
+.poster-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #1a1f2b;
+}
+
+.poster-mood-fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-muted);
+}
+
+.poster-mood-fallback .mood-emoji {
+  font-size: 42px;
+  line-height: 1;
+  opacity: 0.7;
+}
+
+.poster-mood-fallback .mood-label {
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
 }
 
 .poster-char {

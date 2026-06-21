@@ -2,6 +2,21 @@ import { useState, useMemo, useEffect } from 'react';
 import { getDailyRecommendation, generateInterpretation } from '../utils/dailyEngine';
 import { usePosterContext } from '../context/PosterContext';
 
+const MOOD_EMOJI = {
+  '低落': '🌧', '焦虑': '⚡', '平静': '🌿', '兴奋': '🎸',
+  '思念': '📮', '无聊': '🫥', '想哭': '💧', '释然': '🌅',
+  '下雨': '🌧', '晴天': '☀', '阴天': '☁', '大风': '🌀',
+  '下雪': '❄', '闷热': '🫠', '月夜': '🌙',
+  '单身': '🚶', '热恋': '💞', '暗恋': '💭', '吵架了': '💔',
+  '冷战期': '🧱', '刚分手': '🚪', '想念某人': '📝', '在暧昧': '🫧',
+  '海边': '🌊', '山里': '⛰', '小镇': '🏘', '大城市': '🌃',
+  '公路上': '🛣', '外太空': '🚀', '咖啡馆': '☕', '家里窝着': '🛋',
+};
+
+function getMoodEmoji(data) {
+  return MOOD_EMOJI[data.mood] || MOOD_EMOJI[data.weather] || '🎬';
+}
+
 export default function DailyResult({ data, onBack, onRestart }) {
   const [flipped, setFlipped] = useState(false);
   const [rerollKey, setRerollKey] = useState(0);
@@ -80,9 +95,12 @@ export default function DailyResult({ data, onBack, onRestart }) {
         <div className="daily-movie-card animate-scale-in" style={{ animationDelay: '0.3s' }}>
           <div className="poster-area" style={{ background: `linear-gradient(135deg, ${bgColor}, #1c1b19)` }}>
             {posters[movie.id] ? (
-              <img src={posters[movie.id]} alt={movie.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img src={posters[movie.id]} alt={movie.title} className="poster-img" />
             ) : (
-              <span style={{ fontSize: '2.8rem', opacity: 0.5 }}>🎬</span>
+              <div className="poster-mood-fallback">
+                <span className="mood-emoji">{getMoodEmoji(data)}</span>
+                <span className="mood-label">{data.mood || data.weather}</span>
+              </div>
             )}
           </div>
           <div className="card-body">

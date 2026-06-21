@@ -27,18 +27,30 @@ export function findMatchingMovies(contextTags, topN = 5) {
     const movieTagsLower = movie.tags.map((t) => t.toLowerCase());
     const contextTagsLower = contextTags.map((t) => t.toLowerCase());
 
-    let matches = 0;
+    let score = 0;
     contextTagsLower.forEach((ct) => {
+      // 精确匹配：context tag 和 movie tag 完全一致 → 高权重
+      if (movieTagsLower.some((mt) => mt === ct)) {
+        score += 2;
+        return;
+      }
+      // 词级匹配：一方包含另一方（如 "温暖治愈" 包含 "治愈"）→ 低权重
       if (movieTagsLower.some((mt) => mt.includes(ct) || ct.includes(mt))) {
-        matches++;
+        score += 1;
       }
     });
 
-    const matchScore = matches / Math.max(contextTags.length, 1);
+    // 归一化：除以可能的最大分值（每个 context tag 最多 2 分）
+    const maxScore = contextTags.length * 2;
+    const matchScore = Math.round((score / Math.max(maxScore, 1)) * 100);
     return { ...movie, matchScore };
   });
 
-  scored.sort((a, b) => b.matchScore - a.matchScore);
+  // 按匹配分降序，同分时按标签多样性升序（避免"万能匹配"电影长期霸榜）
+  scored.sort((a, b) => {
+    if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
+    return a.tags.length - b.tags.length;
+  });
   return scored.slice(0, topN);
 }
 
@@ -50,7 +62,15 @@ export function getDailyRecommendation(selections) {
     return { movie: movies[Math.floor(Math.random() * movies.length)], text: '' };
   }
 
-  const picked = topMatches[Math.floor(Math.random() * Math.min(3, topMatches.length))];
+  // 带权重的随机选择：高分电影更大概率被选中
+  const pool = topMatches.slice(0, Math.min(5, topMatches.length));
+  const totalScore = pool.reduce((sum, m) => sum + m.matchScore + 1, 0);
+  let rand = Math.random() * totalScore;
+  let picked = pool[0];
+  for (const m of pool) {
+    rand -= (m.matchScore + 1);
+    if (rand <= 0) { picked = m; break; }
+  }
 
   const text = generateDailyText(selections, picked, contextTags);
   return { movie: picked, text, alternates: topMatches.filter((m) => m.id !== picked.id) };
