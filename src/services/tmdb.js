@@ -1,8 +1,11 @@
+import movies from '../data/movies.json';
+
 const API_KEY = '5f6f71341339e144303eb5658119beba';
 const BASE_URL = 'https://api.themoviedb.org/3';
+const BASE_IMG = 'https://image.tmdb.org/t/p/w342';
 
 const CACHE_KEY = 'film_mirror_posters';
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 
 function loadCache() {
   try {
@@ -25,13 +28,24 @@ function saveCache(cache) {
 
 const cache = loadCache();
 
-const pending = new Map();
-
-const BASE_IMG = 'https://image.tmdb.org/t/p/w342';
+// 多源图片 URL 生成（图片加载失败时自动切换）
+export function getPosterSources(path) {
+  if (!path) return [];
+  const directUrl = `${BASE_IMG}${path}`;
+  // weserv.nl 图片代理（免费，CORS 友好，绕过 geo-block）
+  const weservUrl = `https://images.weserv.nl/?url=${encodeURIComponent(directUrl)}&default=1`;
+  return [directUrl, weservUrl];
+}
 
 export function getPosterUrl(path) {
   if (!path) return '';
   return `${BASE_IMG}${path}`;
+}
+
+// 从预填数据中加载海报路径（无需 runtime API 调用）
+export function getStaticPosterPath(movieId) {
+  const movie = movies.find(m => m.id === movieId);
+  return movie?.tmdbPosterPath || '';
 }
 
 export function getCachedPoster(movieId) {
@@ -69,14 +83,7 @@ async function fetchPoster(movie) {
 
 export async function fetchPosterForMovie(movie) {
   if (cache[movie.id] !== undefined) return cache[movie.id];
-
-  if (pending.has(movie.id)) return pending.get(movie.id);
-
-  const promise = fetchPoster(movie);
-  pending.set(movie.id, promise);
-  const result = await promise;
-  pending.delete(movie.id);
-  return result;
+  return fetchPoster(movie);
 }
 
 const RATE_QUEUE = [];

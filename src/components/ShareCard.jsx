@@ -15,8 +15,9 @@ const COLLAGE_LAYOUT = [
   { x: 46, y: 50, w: 48, h: 48, rot: -1, z: 4 },
 ];
 
-function PosterTile({ movie, poster, layout }) {
-  const hasPoster = poster && poster !== '';
+function PosterTile({ movie, sources, layout }) {
+  const [imgError, setImgError] = useState(0); // 重试了多少个源都没成功
+  const [selectedSrc, setSelectedSrc] = useState(null);
   const char = movie.title?.charAt(0) || '?';
   // 哈希生成稳定的占位色
   let hash = 0;
@@ -25,6 +26,23 @@ function PosterTile({ movie, poster, layout }) {
   }
   const hue = hash;
   const bg = `linear-gradient(135deg, hsl(${hue}, 30%, 25%), hsl(${(hue + 30) % 360}, 35%, 15%))`;
+
+  useEffect(() => {
+    setImgError(0);
+    setSelectedSrc(null);
+  }, [sources?.length]);
+
+  const canTry = sources && sources.length > 0;
+  const allFailed = !canTry || imgError >= sources.length;
+  const srcToUse = canTry ? sources[Math.min(imgError, sources.length - 1)] : '';
+
+  const handleError = () => {
+    if (imgError + 1 >= sources.length) {
+      setImgError(sources.length); // 全部失败
+    } else {
+      setImgError(prev => prev + 1);
+    }
+  };
 
   return (
     <div
@@ -39,14 +57,16 @@ function PosterTile({ movie, poster, layout }) {
         borderRadius: 2,
         overflow: 'hidden',
         boxShadow: '0 4px 12px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.08)',
-        background: hasPoster ? '#1a1a1a' : bg,
+        background: allFailed ? bg : '#1a1a1a',
       }}
     >
-      {hasPoster ? (
+      {!allFailed && srcToUse ? (
         <img
-          src={poster}
+          key={imgError}
+          src={srcToUse}
           alt={movie.title}
           crossOrigin="anonymous"
+          onError={handleError}
           style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
         />
       ) : (
@@ -98,7 +118,7 @@ function TicketStub() {
 export default function ShareCard({ scores, selectedMovieIds }) {
   const cardRef = useRef(null);
   const [saving, setSaving] = useState(false);
-  const { posters } = usePosterContext();
+  const { posterSources } = usePosterContext();
 
   const personality = useMemo(() => getPersonalityName(scores), [scores]);
   const sharePosters = useMemo(
@@ -304,7 +324,7 @@ export default function ShareCard({ scores, selectedMovieIds }) {
             <PosterTile
               key={movie.id}
               movie={movie}
-              poster={posters[movie.id]}
+              sources={posterSources[movie.id]}
               layout={COLLAGE_LAYOUT[i]}
             />
           ))}
