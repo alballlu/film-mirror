@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, useEffect } from 'react';
 import html2canvas from 'html2canvas';
 import { QRCodeSVG } from 'qrcode.react';
 import { getPersonalityName, pickSharePosters } from '../utils/personalityEngine';
