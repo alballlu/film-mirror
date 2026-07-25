@@ -212,27 +212,27 @@ export default function ShareCard({ scores, selectedMovieIds }) {
           </div>
         </div>
 
-        {/* 类型主标题区 */}
+        {/* 类型主标题区 — 变体为视觉主角 */}
         <div style={{ padding: '16px 20px 8px', textAlign: 'center' }}>
           <div style={{
-            fontSize: 32,
+            fontSize: 28,
             fontWeight: 700,
             color: '#2D2D2D',
-            lineHeight: 1.1,
-            marginBottom: 4,
+            lineHeight: 1.15,
+            marginBottom: 6,
             fontFamily: "'Noto Serif SC', serif",
           }}>
-            {personality.primary}
+            {personality.variant}
           </div>
           <div style={{
-            display: 'inline-block',
-            fontSize: 11,
+            fontSize: 13,
             color: '#8B6F47',
-            letterSpacing: 4,
-            fontFamily: "'Noto Sans SC', sans-serif",
-            marginBottom: 10,
+            marginBottom: 12,
+            fontFamily: "'Noto Serif SC', serif",
+            fontWeight: 500,
+            letterSpacing: 1,
           }}>
-            ·  {personality.variant}  ·
+            {personality.primary} · {personality.keywords.slice(0, 2).join(' / ')}
           </div>
           <div style={{
             display: 'inline-block',
