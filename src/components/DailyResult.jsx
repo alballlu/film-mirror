@@ -20,6 +20,7 @@ function getMoodEmoji(data) {
 export default function DailyResult({ data, onBack, onRestart }) {
   const [flipped, setFlipped] = useState(false);
   const [rerollKey, setRerollKey] = useState(0);
+  const [excludedIds, setExcludedIds] = useState([]);
   const [result, setResult] = useState(() => getDailyRecommendation(data));
   const { posters } = usePosterContext();
 
@@ -31,7 +32,9 @@ export default function DailyResult({ data, onBack, onRestart }) {
   const handleReroll = () => {
     setFlipped(false);
     setTimeout(() => {
-      setResult(getDailyRecommendation(data));
+      const newExcluded = [...excludedIds, result.movie.id];
+      setExcludedIds(newExcluded);
+      setResult(getDailyRecommendation(data, newExcluded));
       setRerollKey((k) => k + 1);
     }, 400);
   };
@@ -84,8 +87,8 @@ export default function DailyResult({ data, onBack, onRestart }) {
             <div className="flip-card-back">
               <div style={{ padding: 20, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', textAlign: 'center' }}>
                 <span style={{ fontSize: '3rem', marginBottom: 12 }}>🎬</span>
-                <h3 style={{ fontFamily: 'var(--serif)', fontSize: '1.3rem' }}>{movie.title}</h3>
-                <p style={{ color: 'var(--accent)', fontSize: '0.9rem' }}>{movie.year}</p>
+                <h3 style={{ fontFamily: 'var(--font-serif-zh)', fontSize: '1.3rem' }}>{movie.title}</h3>
+                <p style={{ color: 'var(--gold)', fontSize: '0.9rem' }}>{movie.year}</p>
               </div>
             </div>
           </div>
@@ -108,7 +111,7 @@ export default function DailyResult({ data, onBack, onRestart }) {
             <p className="movie-year">{movie.titleEn} · {movie.year} · {movie.director}</p>
             <p className="recommend-line">{result.text}</p>
             <div className="interpretation">
-              <p style={{ fontWeight: 600, color: 'var(--accent)', marginBottom: 8, fontSize: '0.8rem' }}>
+              <p style={{ fontWeight: 600, color: 'var(--gold)', marginBottom: 8, fontSize: '0.8rem' }}>
                 ✦ 今日解读
               </p>
               {interpretation}

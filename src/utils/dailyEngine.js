@@ -2,6 +2,15 @@ import movies from '../data/movies.json';
 import contextMapping from '../data/contextMapping.json';
 import dailyTexts from '../data/dailyTexts.json';
 
+function deterministicHash(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
 export function getAllContextTags(selections) {
   const tags = [];
   const { mood, weather, relationship, travel } = selections;
@@ -22,7 +31,7 @@ export function getAllContextTags(selections) {
   return tags;
 }
 
-export function findMatchingMovies(contextTags, topN = 5) {
+export function findMatchingMovies(contextTags, topN = 20) {
   const scored = movies.map((movie) => {
     const movieTagsLower = movie.tags.map((t) => t.toLowerCase());
     const contextTagsLower = contextTags.map((t) => t.toLowerCase());
@@ -54,23 +63,20 @@ export function findMatchingMovies(contextTags, topN = 5) {
   return scored.slice(0, topN);
 }
 
-export function getDailyRecommendation(selections) {
+export function getDailyRecommendation(selections, excludeIds = []) {
   const contextTags = getAllContextTags(selections);
-  const topMatches = findMatchingMovies(contextTags, 5);
+  const topMatches = findMatchingMovies(contextTags, 20)
+    .filter((m) => !excludeIds.includes(m.id));
 
   if (topMatches.length === 0) {
-    return { movie: movies[Math.floor(Math.random() * movies.length)], text: '' };
+    return { movie: movies[0], text: '' };
   }
 
-  // 带权重的随机选择：高分电影更大概率被选中
-  const pool = topMatches.slice(0, Math.min(5, topMatches.length));
-  const totalScore = pool.reduce((sum, m) => sum + m.matchScore + 1, 0);
-  let rand = Math.random() * totalScore;
-  let picked = pool[0];
-  for (const m of pool) {
-    rand -= (m.matchScore + 1);
-    if (rand <= 0) { picked = m; break; }
-  }
+  // 确定性选择：用心情组合做 hash，从 top10 池中取一部
+  const pool = topMatches.slice(0, Math.min(10, topMatches.length));
+  const hashKey = `${selections.mood || ''}${selections.weather || ''}${selections.relationship || ''}${selections.travel || ''}${excludeIds.length}`;
+  const idx = deterministicHash(hashKey) % pool.length;
+  const picked = pool[idx];
 
   const text = generateDailyText(selections, picked, contextTags);
   return { movie: picked, text, alternates: topMatches.filter((m) => m.id !== picked.id) };
@@ -179,5 +185,5 @@ export function generateInterpretation(selections, movie) {
     `${context}。把今晚交给《${movie.title}》吧。${movie.director || '导演'}的世界里，${movie.tags[0] || '电影'}不只是一种类型，更是一种情绪——恰好是你今天随身携带的那一种。`,
   ];
 
-  return interpretations[Math.floor(Math.random() * interpretations.length)];
+  return interpretations[deterministicHash(context + movie.title) % interpretations.length];
 }
