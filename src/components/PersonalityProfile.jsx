@@ -5,8 +5,10 @@ import {
 } from 'recharts';
 import {
   calculatePersonalityScore, getPersonalitySummary,
-  getDimensionText, DIMENSIONS,
+  getDimensionText, getPersonalityName, DIMENSIONS,
 } from '../utils/personalityEngine';
+import ShareCard from './ShareCard';
+import ConfettiEffect from './ConfettiEffect';
 
 const DIMENSION_LABELS = {
   '逻辑分析': '逻辑分析',
@@ -17,12 +19,15 @@ const DIMENSION_LABELS = {
   '内省深度': '内省深度',
 };
 
-export default function PersonalityProfile({ tags, onNext, onBack }) {
+export default function PersonalityProfile({ tags, selectedMovieIds, onNext, onBack }) {
   const [expanded, setExpanded] = useState(null);
   const [animateChart, setAnimateChart] = useState(false);
   const [shareText, setShareText] = useState('');
+  const [showCard, setShowCard] = useState(false);
+  const [confettiTrigger, setConfettiTrigger] = useState(false);
 
   const scores = useMemo(() => calculatePersonalityScore(tags), [tags]);
+  const personalityName = useMemo(() => getPersonalityName(scores), [scores]);
   const summary = useMemo(() => getPersonalitySummary(scores, tags.map((t) => ({ tag: t }))), [scores, tags]);
   const chartData = useMemo(
     () => DIMENSIONS.map((d) => ({ dimension: DIMENSION_LABELS[d], score: scores[d], full: 100 })),
@@ -32,6 +37,11 @@ export default function PersonalityProfile({ tags, onNext, onBack }) {
   useEffect(() => {
     const t = setTimeout(() => setAnimateChart(true), 300);
     return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    if (window.umami) umami.track('flow_a_complete');
+    setConfettiTrigger(true);
   }, []);
 
   const sortedDims = useMemo(
@@ -75,10 +85,10 @@ export default function PersonalityProfile({ tags, onNext, onBack }) {
         <div className="radar-container">
           <ResponsiveContainer width="100%" height={360}>
             <RadarChart data={chartData} cx="50%" cy="50%" outerRadius="75%">
-              <PolarGrid stroke="var(--border)" />
+              <PolarGrid stroke="var(--border-default)" />
               <PolarAngleAxis
                 dataKey="dimension"
-                tick={{ fill: 'var(--text-secondary)', fontSize: 13, fontFamily: 'var(--sans)' }}
+                tick={{ fill: 'var(--text-secondary)', fontSize: 13, fontFamily: 'var(--font-sans)' }}
               />
               <PolarRadiusAxis
                 angle={30}
@@ -90,7 +100,7 @@ export default function PersonalityProfile({ tags, onNext, onBack }) {
               <Tooltip
                 contentStyle={{
                   background: 'var(--bg-card)',
-                  border: '1px solid var(--border)',
+                  border: '1px solid var(--border-default)',
                   borderRadius: 8,
                   color: 'var(--text-primary)',
                 }}
@@ -99,9 +109,9 @@ export default function PersonalityProfile({ tags, onNext, onBack }) {
               <Radar
                 name="性格维度"
                 dataKey="score"
-                stroke="var(--accent)"
+                stroke="var(--gold)"
                 strokeWidth={2}
-                fill="rgba(184, 122, 78, 0.2)"
+                fill="rgba(201, 168, 108, 0.15)"
                 fillOpacity={0.6}
                 animationDuration={animateChart ? 1500 : 0}
                 animationBegin={0}
@@ -111,7 +121,7 @@ export default function PersonalityProfile({ tags, onNext, onBack }) {
         </div>
 
         <div className="personality-summary">
-          <p style={{ fontStyle: 'italic', fontSize: '0.85rem', color: 'var(--accent)', marginBottom: 12 }}>
+          <p style={{ fontStyle: 'italic', fontSize: '0.85rem', color: 'var(--gold)', marginBottom: 12 }}>
             ✦ 性格解读
           </p>
           {summary}
@@ -151,25 +161,35 @@ export default function PersonalityProfile({ tags, onNext, onBack }) {
         ))}
       </div>
 
-      {/* Share */}
+      {/* 分享结果卡入口 */}
       <div className="share-actions animate-fade-up" style={{ animationDelay: '0.6s' }}>
-        <button className="btn btn-primary" onClick={copyShareText}>
-          📋 复制分享文案
+        <button className="btn btn-primary" onClick={() => setShowCard(true)}>
+          🎫 生成分享卡
         </button>
         <button className="btn btn-secondary" onClick={copyShareText}>
-          🔗 复制链接
+          📋 复制分享文案
         </button>
       </div>
 
-      {shareText && (
-        <div style={{ marginTop: 16 }} className="animate-fade-up">
-          <textarea
-            className="share-textarea"
-            readOnly
-            value={shareText}
-            onClick={(e) => e.target.select()}
-            rows={4}
-          />
+      {/* 分享卡弹窗 */}
+      {showCard && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.85)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+          overflow: 'auto',
+        }}>
+          <ConfettiEffect trigger={confettiTrigger} />
+          <div style={{ maxHeight: '90vh', overflow: 'auto', padding: 20 }}>
+            <ShareCard scores={scores} selectedMovieIds={selectedMovieIds} />
+            <button onClick={() => setShowCard(false)} style={{ marginTop: 12, padding: '8px 24px', background: 'transparent', color: '#F5F1EA', border: '1px solid #F5F1EA', borderRadius: 6, cursor: 'pointer', fontFamily: "'Noto Sans SC', sans-serif" }}>
+              关闭
+            </button>
+          </div>
         </div>
       )}
 

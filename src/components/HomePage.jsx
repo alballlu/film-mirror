@@ -14,7 +14,10 @@ export default function HomePage({ onDeepClick, onDailyClick }) {
       {/* Cards */}
       <div className="home-cards">
         {/* Deep Experience Card */}
-        <div className="home-card" onClick={onDeepClick}>
+        <div className="home-card" onClick={() => {
+          if (window.umami) umami.track('flow_a_start');
+          onDeepClick();
+        }}>
           <div className="card-symbol">PROFILE</div>
           <h2 className="card-title">探索你的电影性格</h2>
           <p className="card-desc">

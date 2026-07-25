@@ -66,6 +66,7 @@ export default function App() {
           element={
             <PersonalityProfile
               tags={flowAData.tags}
+              selectedMovieIds={flowAData.selectedMovies}
               onNext={(scores) => {
                 updateFlowA({ scores });
                 navigate('/flow-a/step4');

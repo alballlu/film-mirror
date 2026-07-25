@@ -1074,6 +1074,19 @@ button, .category-tab, .home-card, .movie-card {
 }
 
 /* ========== Mobile Responsive ========== */
+/* === Share Card 票根印刷感 === */
+.share-ticket-print {
+  background-blend-mode: multiply;
+}
+
+/* 票根纸张纹理（如果想更纸张感） */
+.paper-texture {
+  background-image:
+    radial-gradient(ellipse at 20% 20%, rgba(139, 111, 71, 0.05) 0%, transparent 70%),
+    radial-gradient(ellipse at 80% 80%, rgba(139, 111, 71, 0.04) 0%, transparent 70%);
+}
+
+/* ========== Mobile Responsive ========== */
 @media (max-width: 480px) {
   .home-card { padding: 32px 24px; }
   .card-title { font-size: 19px; }

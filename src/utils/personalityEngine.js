@@ -1,6 +1,16 @@
 import movies from '../data/movies.json';
 import tagMapping from '../data/tagMapping.json';
 import personalityTexts from '../data/personalityTexts.json';
+import personalityNames from '../data/personalityNames.json';
+
+function deterministicHash(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
 
 const DIMENSIONS = ['逻辑分析', '自由探索', '情感共鸣', '美学感知', '权威质疑', '内省深度'];
 
@@ -61,7 +71,7 @@ export function getPersonalitySummary(scores, topTags) {
   const topTag2 = topTags[1]?.tag || '心理';
 
   const templates = personalityTexts.summaries;
-  const idx = Math.floor(Math.random() * templates.length);
+  const idx = deterministicHash(topDim + topTag1 + topTag2) % templates.length;
   let text = templates[idx];
   text = text.replace(/\{topDim\}/g, topDim);
   text = text.replace(/\{topTag1\}/g, topTag1);
@@ -113,9 +123,71 @@ export function getCareerAdvice(scores) {
     `${primaryDim}是你在电影里一直寻找的东西，但${secondaryDim}同样在你的精神世界里扮演着重要的角色。`,
   ];
 
-  const intro = intros[Math.floor(Math.random() * intros.length)];
+  const intro = intros[deterministicHash(primaryDim + secondaryDim) % intros.length];
 
   return { topDims, careerList, intro };
+}
+
+export function getPersonalityName(scores) {
+  const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+  const topDim = sorted[0][0];
+  const secondDim = sorted[1][0];
+
+  const mainName = personalityNames.mainNames[topDim];
+  const variantKey = `${topDim}_${secondDim}`;
+  const variantName = personalityNames.variants[variantKey] || '标准';
+
+  const code = `${topDim.charAt(0)}${secondDim.charAt(0)}-${Math.round(sorted[0][1])}`;
+
+  const declArr = personalityNames.declarations[mainName] || [''];
+  const seedVal = deterministicHash(Object.values(scores).join(''));
+  const declaration = declArr[seedVal % declArr.length];
+
+  const mainKws = personalityNames.keywords[topDim] || [];
+  const variantKws = personalityNames.variantKeywords[variantName] || [];
+  const kws = [...mainKws.slice(0, 3), ...variantKws.slice(0, 2)];
+
+  return {
+    primary: mainName,
+    variant: variantName,
+    full: `${mainName}·${variantName}`,
+    code,
+    declaration,
+    keywords: kws,
+  };
+}
+
+export function resonanceScore(movieTags, userScores) {
+  const movieDims = {};
+  for (const tag of movieTags) {
+    const mapping = tagMapping[tag] || {};
+    for (const [dim, weight] of Object.entries(mapping)) {
+      movieDims[dim] = (movieDims[dim] || 0) + weight;
+    }
+  }
+  const totalWeight = Object.values(movieDims).reduce((s, w) => s + w, 0) || 1;
+  let score = 0;
+  for (const [dim, weight] of Object.entries(movieDims)) {
+    score += (weight / totalWeight) * (userScores[dim] || 0);
+  }
+  return score;
+}
+
+export function pickSharePosters(userScores, excludeIds, count = 5) {
+  const seed = deterministicHash(Object.values(userScores).join(''));
+  const candidates = movies
+    .filter((m) => !excludeIds.includes(m.id))
+    .map((m) => ({ ...m, resonance: resonanceScore(m.tags, userScores) }))
+    .sort((a, b) => b.resonance - a.resonance);
+  const top30 = candidates.slice(0, 30);
+  const result = [];
+  const pool = [...top30];
+  for (let i = 0; i < count && pool.length > 0; i++) {
+    const idx = (seed + i * 7) % pool.length;
+    result.push(pool[idx]);
+    pool.splice(idx, 1);
+  }
+  return result;
 }
 
 export { DIMENSIONS };
