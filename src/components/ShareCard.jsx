@@ -219,21 +219,23 @@ export default function ShareCard({ scores, selectedMovieIds }) {
             fontWeight: 700,
             color: '#2D2D2D',
             lineHeight: 1.15,
-            marginBottom: 6,
+            marginBottom: personality.isFallback ? 16 : 6,
             fontFamily: "'Noto Serif SC', serif",
           }}>
             {personality.variant}
           </div>
-          <div style={{
-            fontSize: 13,
-            color: '#8B6F47',
-            marginBottom: 12,
-            fontFamily: "'Noto Serif SC', serif",
-            fontWeight: 500,
-            letterSpacing: 1,
-          }}>
-            {personality.primary} · {personality.keywords.slice(0, 2).join(' / ')}
-          </div>
+          {!personality.isFallback && (
+            <div style={{
+              fontSize: 13,
+              color: '#8B6F47',
+              marginBottom: 12,
+              fontFamily: "'Noto Serif SC', serif",
+              fontWeight: 500,
+              letterSpacing: 1,
+            }}>
+              {personality.primary} · {personality.keywords.slice(0, 2).join(' / ')}
+            </div>
+          )}
           <div style={{
             display: 'inline-block',
             fontSize: 10,

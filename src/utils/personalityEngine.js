@@ -135,7 +135,8 @@ export function getPersonalityName(scores) {
 
   const mainName = personalityNames.mainNames[topDim];
   const variantKey = `${topDim}_${secondDim}`;
-  const variantName = personalityNames.variants[variantKey] || '标准';
+  const hasExactVariant = variantKey in personalityNames.variants;
+  const variantName = personalityNames.variants[variantKey] || mainName;
 
   const code = `${topDim.charAt(0)}${secondDim.charAt(0)}-${Math.round(sorted[0][1])}`;
 
@@ -150,6 +151,7 @@ export function getPersonalityName(scores) {
   return {
     primary: mainName,
     variant: variantName,
+    isFallback: !hasExactVariant,
     full: `${mainName}·${variantName}`,
     code,
     declaration,

@@ -25,6 +25,7 @@ export default function PersonalityProfile({ tags, selectedMovieIds, onNext, onB
   const [shareText, setShareText] = useState('');
   const [showCard, setShowCard] = useState(false);
   const [confettiTrigger, setConfettiTrigger] = useState(false);
+  const [liked, setLiked] = useState(() => localStorage.getItem('filmmirror_liked') === 'true');
 
   const scores = useMemo(() => calculatePersonalityScore(tags), [tags]);
   const personalityName = useMemo(() => getPersonalityName(scores), [scores]);
@@ -60,8 +61,16 @@ export default function PersonalityProfile({ tags, selectedMovieIds, onNext, onB
     navigator.clipboard.writeText(content).catch(() => {});
   };
 
+  const handleLike = () => {
+    const newLiked = !liked;
+    setLiked(newLiked);
+    localStorage.setItem('filmmirror_liked', String(newLiked));
+    if (newLiked && window.umami) umami.track('like_result');
+  };
+
   return (
     <div className="page animate-fade-in">
+      <ConfettiEffect trigger={confettiTrigger} />
       <div className="progress-bar animate-fade-up">
         <div className="progress-step done">✓</div>
         <div className="progress-line done" />
@@ -128,6 +137,25 @@ export default function PersonalityProfile({ tags, selectedMovieIds, onNext, onB
         </div>
       </div>
 
+      {/* 点赞区域 */}
+      <div style={{ textAlign: 'center', marginTop: 8, marginBottom: 16 }}>
+        <button
+          onClick={handleLike}
+          style={{
+            background: liked ? 'var(--gold)' : 'transparent',
+            border: `1px solid ${liked ? 'var(--gold)' : 'var(--border-default)'}`,
+            borderRadius: 20,
+            padding: '6px 16px',
+            cursor: 'pointer',
+            color: liked ? '#fff' : 'var(--text-secondary)',
+            fontSize: '0.85rem',
+            fontFamily: 'var(--font-sans)',
+          }}
+        >
+          {liked ? '❤️ 已赞' : '🤍 点赞'}
+        </button>
+      </div>
+
       {/* Dimension Breakdown */}
       <div className="dimension-breakdown animate-fade-up" style={{ animationDelay: '0.25s' }}>
         <h3 className="section-title" style={{ marginBottom: 16 }}>
@@ -183,7 +211,6 @@ export default function PersonalityProfile({ tags, selectedMovieIds, onNext, onB
           zIndex: 1000,
           overflow: 'auto',
         }}>
-          <ConfettiEffect trigger={confettiTrigger} />
           <div style={{ maxHeight: '90vh', overflow: 'auto', padding: 20 }}>
             <ShareCard scores={scores} selectedMovieIds={selectedMovieIds} />
             <button onClick={() => setShowCard(false)} style={{ marginTop: 12, padding: '8px 24px', background: 'transparent', color: '#F5F1EA', border: '1px solid #F5F1EA', borderRadius: 6, cursor: 'pointer', fontFamily: "'Noto Sans SC', sans-serif" }}>
