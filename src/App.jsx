@@ -7,6 +7,7 @@ import PersonalityProfile from './components/PersonalityProfile';
 import Recommendation from './components/Recommendation';
 import DailyContext from './components/DailyContext';
 import DailyResult from './components/DailyResult';
+import { enrichExternalMoviesBatch } from './services/tmdb';
 
 export default function App() {
   const navigate = useNavigate();
@@ -14,8 +15,10 @@ export default function App() {
     selectedMovies: [],
     tags: [],
     scores: null,
+    externalMovies: {},
   });
   const [flowBData, setFlowBData] = useState(null);
+  const [enriching, setEnriching] = useState(false);
 
   const updateFlowA = useCallback((partial) => {
     setFlowAData((prev) => ({ ...prev, ...partial }));
@@ -27,6 +30,27 @@ export default function App() {
     navigate('/flow-b/step1');
   };
   const goHome = () => navigate('/');
+
+  // Step1 → Step2：外部 TMDB 电影 keywords 异步 enrichment
+  const handleMoviesSelected = useCallback((movies, externalMovies) => {
+    updateFlowA({
+      selectedMovies: movies,
+      externalMovies: externalMovies || {},
+    });
+    navigate('/flow-a/step2');
+
+    // 后台异步：keyword enrichment
+    const tmdbCount = Object.keys(externalMovies || {}).length;
+    if (tmdbCount > 0) {
+      setEnriching(true);
+      enrichExternalMoviesBatch(externalMovies)
+        .then((enriched) => {
+          updateFlowA({ externalMovies: enriched });
+          setEnriching(false);
+        })
+        .catch(() => setEnriching(false));
+    }
+  }, [navigate, updateFlowA]);
 
   return (
     <div className="app-container">
@@ -40,10 +64,7 @@ export default function App() {
           element={
             <MovieSelection
               selectedMovies={flowAData.selectedMovies}
-              onNext={(movies) => {
-                updateFlowA({ selectedMovies: movies });
-                navigate('/flow-a/step2');
-              }}
+              onNext={handleMoviesSelected}
               onBack={goHome}
             />
           }
@@ -53,6 +74,8 @@ export default function App() {
           element={
             <TagConfirmation
               selectedMovieIds={flowAData.selectedMovies}
+              externalMovies={flowAData.externalMovies}
+              enriching={enriching}
               onNext={(tags) => {
                 updateFlowA({ tags });
                 navigate('/flow-a/step3');
@@ -67,6 +90,7 @@ export default function App() {
             <PersonalityProfile
               tags={flowAData.tags}
               selectedMovieIds={flowAData.selectedMovies}
+              externalMovies={flowAData.externalMovies}
               onNext={(scores) => {
                 updateFlowA({ scores });
                 navigate('/flow-a/step4');
@@ -80,6 +104,7 @@ export default function App() {
           element={
             <Recommendation
               selectedMovieIds={flowAData.selectedMovies}
+              externalMovies={flowAData.externalMovies}
               tags={flowAData.tags}
               scores={flowAData.scores}
               onBack={() => navigate('/flow-a/step3')}

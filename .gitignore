@@ -2,4 +2,7 @@ node_modules/
 dist/
 .vite/
 *.local
+.env
+.env.local
+.env.production
 .DS_Store

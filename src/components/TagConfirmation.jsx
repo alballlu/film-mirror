@@ -3,15 +3,22 @@ import movies from '../data/movies.json';
 import { extractTags } from '../utils/personalityEngine';
 import { usePosterContext } from '../context/PosterContext';
 
-export default function TagConfirmation({ selectedMovieIds, onNext, onBack }) {
+export default function TagConfirmation({ selectedMovieIds, externalMovies, enriching, onNext, onBack }) {
   const { posters } = usePosterContext();
-  const extracted = useMemo(() => extractTags(selectedMovieIds), [selectedMovieIds]);
+  const extracted = useMemo(() => extractTags(selectedMovieIds, externalMovies), [selectedMovieIds, externalMovies]);
   const [tags, setTags] = useState(extracted.map((t) => t.tag));
   const [input, setInput] = useState('');
 
   const selectedMovies = useMemo(
-    () => selectedMovieIds.map((id) => movies.find((m) => m.id === id)).filter(Boolean),
-    [selectedMovieIds]
+    () =>
+      selectedMovieIds
+        .map((id) => {
+          const local = movies.find((m) => m.id === id);
+          if (local) return { ...local, isTMDB: false };
+          return externalMovies[id] || null;
+        })
+        .filter(Boolean),
+    [selectedMovieIds, externalMovies]
   );
 
   const removeTag = (tag) => setTags((prev) => prev.filter((t) => t !== tag));
@@ -36,10 +43,18 @@ export default function TagConfirmation({ selectedMovieIds, onNext, onBack }) {
         </h2>
       </div>
 
-      <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 24 }}>
+      <p style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 8 }}>
         基于你选的 {selectedMovieIds.length} 部电影，我们提取了以下高频标签。
         你可以删掉不认同的，也可以补充自己的——这会让画像更准确。
       </p>
+      {enriching && (
+        <p style={{
+          fontSize: 12, color: 'var(--gold)', marginBottom: 16,
+          fontFamily: 'var(--font-sans)', fontStyle: 'italic',
+        }}>
+          🔍 正在联网丰富外部电影的标签信息…
+        </p>
+      )}
 
       {/* Selected Movies Strip */}
       <div className="selected-movies-strip">

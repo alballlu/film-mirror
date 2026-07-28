@@ -2,14 +2,46 @@ import { useMemo, useRef, useEffect, useState } from 'react';
 import movies from '../data/movies.json';
 import { getRecommendations, getCareerAdvice } from '../utils/personalityEngine';
 import { usePosterContext } from '../context/PosterContext';
+import { fetchSimilarTMDB, getPosterUrl } from '../services/tmdb';
 
-export default function Recommendation({ selectedMovieIds, tags, scores, onBack, onRestart }) {
+export default function Recommendation({ selectedMovieIds, externalMovies, tags, scores, onBack, onRestart }) {
   const [animated, setAnimated] = useState(false);
   const { posters } = usePosterContext();
   useEffect(() => { setTimeout(() => setAnimated(true), 200); }, []);
   const [feedback, setFeedback] = useState(() => localStorage.getItem('filmmirror_feedback') || '');
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [feedbackSending, setFeedbackSending] = useState(false);
+
+  // 混合推荐：用户选了外部 TMDB 电影时，为其找到相似电影
+  const [tmdbSimilar, setTmdbSimilar] = useState([]);
+  const [tmdbSimilarLoading, setTmdbSimilarLoading] = useState(false);
+  const hasExternal = useMemo(
+    () => Object.keys(externalMovies || {}).length > 0,
+    [externalMovies]
+  );
+  useEffect(() => {
+    if (!hasExternal) return;
+    setTmdbSimilarLoading(true);
+    const tmdbIds = Object.keys(externalMovies || {}).slice(0, 2); // 最多 2 部触发推荐
+    Promise.allSettled(
+      tmdbIds.map((id) => fetchSimilarTMDB(id, 3))
+    ).then((results) => {
+      const allSimilar = [];
+      const seen = new Set(selectedMovieIds);
+      results.forEach((r) => {
+        if (r.status === 'fulfilled') {
+          r.value.forEach((m) => {
+            if (!seen.has(m.id)) {
+              allSimilar.push(m);
+              seen.add(m.id);
+            }
+          });
+        }
+      });
+      setTmdbSimilar(allSimilar.slice(0, 8));
+      setTmdbSimilarLoading(false);
+    }).catch(() => setTmdbSimilarLoading(false));
+  }, [hasExternal]);
 
   const recs = useMemo(
     () => getRecommendations(selectedMovieIds, tags.map((t) => ({ tag: t })), scores),
@@ -133,6 +165,62 @@ export default function Recommendation({ selectedMovieIds, tags, scores, onBack,
           </div>
         ))}
       </div>
+
+      {/* TMDB 混合推荐 */}
+      {tmdbSimilar.length > 0 && (
+        <div className="animate-fade-up" style={{ marginTop: 32, animationDelay: '0.55s' }}>
+          <h3 className="section-title">
+            <span className="accent-line" />
+            🌐 来自全球片库的延伸推荐
+          </h3>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: 16 }}>
+            基于你选的外部电影，TMDB 为你推荐了这些你可能喜欢的电影
+          </p>
+          {tmdbSimilar.map((movie, i) => (
+            <div
+              key={movie.id}
+              className="rec-movie-item"
+              style={{ animationDelay: `${0.55 + i * 0.08}s` }}
+            >
+              {movie.posterPath ? (
+                <img
+                  className="rec-movie-poster"
+                  src={getPosterUrl(movie.posterPath)}
+                  alt={movie.title}
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    e.target.parentElement.querySelector('.rec-poster-fallback').style.display = 'flex';
+                  }}
+                />
+              ) : null}
+              <div className="rec-poster-fallback" style={movie.posterPath ? { display: 'none' } : {}}>
+                {movie.title.slice(0, 3)}
+              </div>
+              <div className="rec-movie-info">
+                <h4>
+                  {movie.title}{' '}
+                  <span style={{ fontWeight: 400, color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                    {movie.titleEn} {movie.year ? `(${movie.year})` : ''}
+                  </span>
+                </h4>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>
+                  🏷️ {movie.tags.slice(0, 5).join(' · ') || '类型待定'}
+                </p>
+                {movie.description && (
+                  <p className="rec-desc" style={{ fontSize: '0.8rem' }}>
+                    {movie.description.slice(0, 120)}{movie.description.length > 120 ? '...' : ''}
+                  </p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {tmdbSimilarLoading && (
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', marginTop: 16 }}>
+          🔍 正在寻找更多你可能喜欢的电影...
+        </p>
+      )}
 
       {/* Selected Movies Recap */}
       <div style={{ marginTop: 32, animationDelay: '0.6s' }} className="animate-fade-up">

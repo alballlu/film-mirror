@@ -14,19 +14,29 @@ function deterministicHash(str) {
 
 const DIMENSIONS = ['逻辑分析', '自由探索', '情感共鸣', '美学感知', '权威质疑', '内省深度'];
 
-export function extractTags(selectedMovieIds) {
+export function extractTags(selectedMovieIds, externalMovies = {}) {
   const tagCount = {};
   selectedMovieIds.forEach((id) => {
+    // 本地 movies.json 优先
     const movie = movies.find((m) => m.id === id);
-    if (!movie) return;
-    movie.tags.forEach((tag) => {
-      tagCount[tag] = (tagCount[tag] || 0) + 1;
-    });
+    if (movie) {
+      movie.tags.forEach((tag) => {
+        tagCount[tag] = (tagCount[tag] || 0) + 1;
+      });
+      return;
+    }
+    // 外部电影（TMDB）fallback
+    const extMovie = externalMovies[id];
+    if (extMovie && extMovie.tags) {
+      extMovie.tags.forEach((tag) => {
+        tagCount[tag] = (tagCount[tag] || 0) + 1;
+      });
+    }
   });
 
   const sorted = Object.entries(tagCount)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 15)
+    .slice(0, 30)
     .map(([tag, count]) => ({ tag, count }));
 
   return sorted;
