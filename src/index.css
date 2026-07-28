@@ -489,6 +489,25 @@ button, .category-tab, .home-card, .movie-card {
   font-size: 18px;
 }
 
+.load-more-btn {
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: 100px;
+  padding: 10px 28px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all 0.25s var(--ease-out);
+  min-height: 44px;
+}
+
+.load-more-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: rgba(201,168,108,0.06);
+}
+
 /* Sticky Bottom Bar */
 .sticky-bottom {
   position: fixed;

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import movies from '../data/movies.json';
 import { usePosterContext } from '../context/PosterContext';
 
@@ -17,6 +17,7 @@ export default function MovieSelection({ selectedMovies: initial, onNext, onBack
   const [selected, setSelected] = useState(new Set(initial));
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [visibleCount, setVisibleCount] = useState(24);
   const { posters } = usePosterContext();
 
   const filteredMovies = useMemo(() => {
@@ -42,6 +43,11 @@ export default function MovieSelection({ selectedMovies: initial, onNext, onBack
     }
 
     return result;
+  }, [filter, search]);
+
+  // 切换分类或搜索时重置分页
+  useEffect(() => {
+    setVisibleCount(24);
   }, [filter, search]);
 
   const toggle = (id) => {
@@ -110,43 +116,55 @@ export default function MovieSelection({ selectedMovies: initial, onNext, onBack
       {filteredMovies.length === 0 ? (
         <div className="no-results">未找到匹配的电影</div>
       ) : (
-        <div className="movie-grid">
-          {filteredMovies.map((movie, i) => {
-            const posterUrl = posters[movie.id];
-            return (
-              <div
-                key={movie.id}
-                className={`movie-card ${selected.has(movie.id) ? 'selected' : ''}`}
-                style={{ animationDelay: `${i * 50}ms` }}
-                onClick={() => toggle(movie.id)}
+        <>
+          <div className="movie-grid">
+            {filteredMovies.slice(0, visibleCount).map((movie, i) => {
+              const posterUrl = posters[movie.id];
+              return (
+                <div
+                  key={movie.id}
+                  className={`movie-card ${selected.has(movie.id) ? 'selected' : ''}`}
+                  style={{ animationDelay: `${(i % 24) * 50}ms` }}
+                  onClick={() => toggle(movie.id)}
+                >
+                  {posterUrl ? (
+                    <img
+                      src={posterUrl}
+                      alt={movie.title}
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        opacity: 0.85,
+                      }}
+                    />
+                  ) : null}
+                  <div className="movie-first-char" style={posterUrl ? { position: 'relative', zIndex: 1, textShadow: '0 2px 8px rgba(0,0,0,0.7)' } : {}}>
+                    {movie.title.slice(0, 1)}
+                  </div>
+                  <div className="movie-card-title" style={posterUrl ? { position: 'relative', zIndex: 1, textShadow: '0 1px 4px rgba(0,0,0,0.7)' } : {}}>
+                    {movie.title}
+                  </div>
+                  <div className="movie-card-director" style={posterUrl ? { position: 'relative', zIndex: 1, textShadow: '0 1px 4px rgba(0,0,0,0.7)' } : {}}>
+                    {movie.director}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {visibleCount < filteredMovies.length && (
+            <div style={{ textAlign: 'center', padding: '12px 24px 140px' }}>
+              <button
+                className="load-more-btn"
+                onClick={() => setVisibleCount((c) => c + 24)}
               >
-                {posterUrl ? (
-                  <img
-                    src={posterUrl}
-                    alt={movie.title}
-                    style={{
-                      position: 'absolute',
-                      inset: 0,
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      opacity: 0.85,
-                    }}
-                  />
-                ) : null}
-                <div className="movie-first-char" style={posterUrl ? { position: 'relative', zIndex: 1, textShadow: '0 2px 8px rgba(0,0,0,0.7)' } : {}}>
-                  {movie.title.slice(0, 1)}
-                </div>
-                <div className="movie-card-title" style={posterUrl ? { position: 'relative', zIndex: 1, textShadow: '0 1px 4px rgba(0,0,0,0.7)' } : {}}>
-                  {movie.title}
-                </div>
-                <div className="movie-card-director" style={posterUrl ? { position: 'relative', zIndex: 1, textShadow: '0 1px 4px rgba(0,0,0,0.7)' } : {}}>
-                  {movie.director}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                查看更多 ({filteredMovies.length - visibleCount} 部)
+              </button>
+            </div>
+          )}
+        </>
       )}
 
       {/* Sticky Bottom */}

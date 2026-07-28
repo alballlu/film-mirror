@@ -42,6 +42,19 @@ export function PosterProvider({ children }) {
   }, []);
 
   async function loadMissingPosters(cancelled) {
+    const batchPosters = {};
+    const batchSources = {};
+    const BATCH_SIZE = 10;
+
+    function flushBatch() {
+      if (Object.keys(batchPosters).length === 0) return;
+      setPosters((prev) => ({ ...prev, ...batchPosters }));
+      setPosterSources((prev) => ({ ...prev, ...batchSources }));
+      // 清空累积
+      for (const k in batchPosters) delete batchPosters[k];
+      for (const k in batchSources) delete batchSources[k];
+    }
+
     for (const movie of movies) {
       if (cancelled) break;
       // 已有就不再请求
@@ -51,10 +64,15 @@ export function PosterProvider({ children }) {
 
       const path = await fetchPosterThrottled(movie);
       if (path && !cancelled) {
-        setPosters((prev) => ({ ...prev, [movie.id]: getPosterUrl(path) }));
-        setPosterSources((prev) => ({ ...prev, [movie.id]: getPosterSources(path) }));
+        batchPosters[movie.id] = getPosterUrl(path);
+        batchSources[movie.id] = getPosterSources(path);
+        if (Object.keys(batchPosters).length >= BATCH_SIZE) {
+          flushBatch();
+        }
       }
     }
+    // 处理剩余不足一批的海报
+    flushBatch();
     if (!cancelled) setLoading(false);
   }
 
