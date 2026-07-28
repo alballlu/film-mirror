@@ -26,6 +26,10 @@ export default function PersonalityProfile({ tags, selectedMovieIds, onNext, onB
   const [showCard, setShowCard] = useState(false);
   const [confettiTrigger, setConfettiTrigger] = useState(false);
   const [liked, setLiked] = useState(() => localStorage.getItem('filmmirror_liked') === 'true');
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedback, setFeedback] = useState(() => localStorage.getItem('filmmirror_feedback') || '');
+  const [feedbackSent, setFeedbackSent] = useState(false);
+  const [feedbackSending, setFeedbackSending] = useState(false);
 
   const scores = useMemo(() => calculatePersonalityScore(tags), [tags]);
   const personalityName = useMemo(() => getPersonalityName(scores), [scores]);
@@ -68,6 +72,30 @@ export default function PersonalityProfile({ tags, selectedMovieIds, onNext, onB
     if (newLiked && window.umami) umami.track('like_result');
   };
 
+  const handleFeedback = async () => {
+    if (!feedback.trim()) return;
+    localStorage.setItem('filmmirror_feedback', feedback);
+    setFeedbackSending(true);
+    try {
+      const res = await fetch('https://api.web3forms.com/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({
+          access_key: 'ad278a33-257d-44b9-b62c-abdcce50f952',
+          subject: 'FilmMirror 反馈',
+          from_name: 'FilmMirror User',
+          message: feedback,
+        }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        setFeedbackSent(true);
+        if (window.umami) umami.track('feedback_submitted');
+      }
+    } catch (e) {}
+    setFeedbackSending(false);
+  };
+
   return (
     <div className="page animate-fade-in">
       <ConfettiEffect trigger={confettiTrigger} />
@@ -79,6 +107,16 @@ export default function PersonalityProfile({ tags, selectedMovieIds, onNext, onB
         <div className="progress-step active">3</div>
         <div className="progress-line" />
         <div className="progress-step">4</div>
+      </div>
+
+      {/* 反馈 + 点赞按钮组 */}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 16, marginBottom: 8 }}>
+        <button onClick={() => setShowFeedbackModal(true)} style={{ background: 'transparent', border: '1px solid var(--border-default)', borderRadius: 20, padding: '6px 16px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '0.85rem', fontFamily: 'var(--font-sans)' }}>
+          💬 反馈
+        </button>
+        <button onClick={handleLike} style={{ background: liked ? 'var(--gold)' : 'transparent', border: `1px solid ${liked ? 'var(--gold)' : 'var(--border-default)'}`, borderRadius: 20, padding: '6px 16px', cursor: 'pointer', color: liked ? '#fff' : 'var(--text-secondary)', fontSize: '0.85rem', fontFamily: 'var(--font-sans)' }}>
+          {liked ? '❤️ 已赞' : '🤍 点赞'}
+        </button>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
@@ -135,25 +173,6 @@ export default function PersonalityProfile({ tags, selectedMovieIds, onNext, onB
           </p>
           {summary}
         </div>
-      </div>
-
-      {/* 点赞区域 */}
-      <div style={{ textAlign: 'center', marginTop: 8, marginBottom: 16 }}>
-        <button
-          onClick={handleLike}
-          style={{
-            background: liked ? 'var(--gold)' : 'transparent',
-            border: `1px solid ${liked ? 'var(--gold)' : 'var(--border-default)'}`,
-            borderRadius: 20,
-            padding: '6px 16px',
-            cursor: 'pointer',
-            color: liked ? '#fff' : 'var(--text-secondary)',
-            fontSize: '0.85rem',
-            fontFamily: 'var(--font-sans)',
-          }}
-        >
-          {liked ? '❤️ 已赞' : '🤍 点赞'}
-        </button>
       </div>
 
       {/* Dimension Breakdown */}
@@ -225,6 +244,26 @@ export default function PersonalityProfile({ tags, selectedMovieIds, onNext, onB
           查看推荐与职场关联 →
         </button>
       </div>
+
+      {/* 反馈弹出模态框 */}
+      {showFeedbackModal && (
+        <div onClick={() => setShowFeedbackModal(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-card)', borderRadius: 12, padding: 20, width: '90%', maxWidth: 400, border: '1px solid var(--border-default)' }}>
+            <h4 style={{ marginBottom: 8, fontSize: '0.9rem', color: 'var(--text-primary)' }}>💬 有想法？随便说</h4>
+            {feedbackSent ? (
+              <p style={{ color: 'var(--gold)', fontSize: '0.85rem' }}>收到你的反馈了，感谢 ❤️</p>
+            ) : (
+              <>
+                <textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} placeholder="测试体验、建议、吐槽……都行" rows={3} style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid var(--border-default)', background: 'var(--bg-main)', color: 'var(--text-primary)', fontSize: '0.85rem', fontFamily: 'var(--font-sans)', resize: 'vertical' }} />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+                  <button onClick={() => setShowFeedbackModal(false)} style={{ padding: '6px 16px', background: 'transparent', border: '1px solid var(--border-default)', borderRadius: 6, cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '0.85rem', fontFamily: 'var(--font-sans)' }}>取消</button>
+                  <button onClick={handleFeedback} disabled={feedbackSending || !feedback.trim()} style={{ padding: '6px 16px', background: feedbackSending ? 'var(--border-default)' : 'var(--gold)', color: feedbackSending ? 'var(--text-muted)' : '#fff', border: 'none', borderRadius: 6, cursor: feedbackSending ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontFamily: 'var(--font-sans)' }}>{feedbackSending ? '发送中…' : '提交'}</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
