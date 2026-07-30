@@ -11,18 +11,36 @@ const PROXY_URL = import.meta.env.VITE_TMDB_API_URL || '';
 const USE_PROXY = !!PROXY_URL;
 const MISSING_KEY = !USE_PROXY && !API_KEY;
 
+// ── 请求超时配置 ──────────────────────────────────────────────
+const FETCH_TIMEOUT = 5000; // 单次请求超时 5 秒
+
+/**
+ * 带超时的 fetch 封装
+ * 超时后自动 Abort，不阻塞 UI
+ */
+async function fetchWithTimeout(url, timeoutMs = FETCH_TIMEOUT) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ── 统一 TMDB API 请求：有代理走代理，无代理直连 ──────────────
 async function tmdbFetch(endpoint, queryParams = {}) {
   if (USE_PROXY) {
     // 走 Vercel Serverless 代理（API Key 在服务端注入，前端不传）
     const proxyParams = new URLSearchParams(queryParams);
     const url = `${PROXY_URL}?${proxyParams}`;
-    return fetch(url);
+    return fetchWithTimeout(url);
   }
   // 直连 TMDB API
   const params = new URLSearchParams({ api_key: API_KEY, ...queryParams });
   const url = `${BASE_URL}${endpoint}?${params}`;
-  return fetch(url);
+  return fetchWithTimeout(url);
 }
 
 // ── 搜索缓存（sessionStorage, 5min TTL）────────────────────────
@@ -152,23 +170,41 @@ export async function fetchPosterForMovie(movie) {
   return fetchPoster(movie);
 }
 
-// ── 海报队列节流 ──────────────────────────────────────────────
+// ── 海报队列节流（并发 batch + 超时控制）─────────────────────
 const RATE_QUEUE = [];
 let processing = false;
+const POSTER_CONCURRENCY = 3; // 每批并发数
+const BATCH_DELAY = 300;      // 批次间延迟 ms
 
 async function processQueue() {
   if (processing) return;
   processing = true;
   while (RATE_QUEUE.length > 0) {
-    const { movie, resolve } = RATE_QUEUE.shift();
-    const path = cache[movie.id];
-    if (path !== undefined) {
-      resolve(path);
-      continue;
+    // 取一批（最多 POSTER_CONCURRENCY 个）并发处理
+    const batch = RATE_QUEUE.splice(0, POSTER_CONCURRENCY);
+
+    await Promise.allSettled(
+      batch.map(async ({ movie, resolve }) => {
+        // 缓存命中直接返回
+        const cachedPath = cache[movie.id];
+        if (cachedPath !== undefined) {
+          resolve(cachedPath);
+          return;
+        }
+        try {
+          const result = await fetchPoster(movie);
+          resolve(result);
+        } catch {
+          // fetchPoster 内部已 catch，但保险起见再包一层
+          resolve(null);
+        }
+      })
+    );
+
+    // 批次间延迟，避免触发 TMDB 限速
+    if (RATE_QUEUE.length > 0) {
+      await new Promise((r) => setTimeout(r, BATCH_DELAY));
     }
-    const result = await fetchPoster(movie);
-    resolve(result);
-    await new Promise((r) => setTimeout(r, 260));
   }
   processing = false;
 }

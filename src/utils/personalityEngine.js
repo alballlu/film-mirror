@@ -185,20 +185,81 @@ export function resonanceScore(movieTags, userScores) {
   return score;
 }
 
+/**
+ * 计算一部电影在特定维度上的强度（score 贡献占比）
+ * 返回值越高，说明这部电影在该维度上越"纯粹"/突出
+ */
+function movieDimensionStrength(movieTags, dimension) {
+  let total = 0;
+  let dimContrib = 0;
+  for (const tag of movieTags) {
+    const mapping = tagMapping[tag] || {};
+    let tagTotal = 0;
+    for (const [_, w] of Object.entries(mapping)) tagTotal += w;
+    total += tagTotal;
+    dimContrib += mapping[dimension] || 0;
+  }
+  if (total === 0) return 0;
+  return dimContrib / total; // 该维度占电影 tag 权重的比例
+}
+
 export function pickSharePosters(userScores, excludeIds, count = 5) {
   const seed = deterministicHash(Object.values(userScores).join(''));
+
+  // 识别用户最高分的 2 个维度
+  const sortedDims = Object.entries(userScores).sort((a, b) => b[1] - a[1]);
+  const topDim = sortedDims[0][0];
+  const secondDim = sortedDims[1][0];
+
+  const excludeSet = new Set(excludeIds);
+
+  // 对所有候选电影计算综合评分：
+  // resonance 基础分 + 维度对齐加分（电影在用户 top-1/2 维度上的强度 × 额外权重）
   const candidates = movies
-    .filter((m) => !excludeIds.includes(m.id))
-    .map((m) => ({ ...m, resonance: resonanceScore(m.tags, userScores) }))
-    .sort((a, b) => b.resonance - a.resonance);
-  const top30 = candidates.slice(0, 30);
+    .filter((m) => !excludeSet.has(m.id))
+    .map((m) => {
+      const resonance = resonanceScore(m.tags, userScores);
+      const primaryStrength = movieDimensionStrength(m.tags, topDim);
+      const secondaryStrength = movieDimensionStrength(m.tags, secondDim);
+      // 维对齐加分：top 维度强度 × 35 + second 维度强度 × 20
+      const alignmentBonus = primaryStrength * 35 + secondaryStrength * 20;
+      const finalScore = resonance + alignmentBonus;
+      return { ...m, resonance, finalScore, primaryStrength, secondaryStrength };
+    })
+    .sort((a, b) => b.finalScore - a.finalScore);
+
+  // 两步选片：
+  // Step 1: 从 top 维度最强的前 10 部里确定性取 3 张
+  // Step 2: 从综合分前 20 部里确定性取 2 张（保证多样性）
+
+  const topDimPool = candidates
+    .filter((m) => m.primaryStrength >= 0.15) // 至少 15% 的 tag 权重贡献到 top 维度
+    .slice(0, 10);
+
+  const generalPool = candidates.slice(0, 20);
+
   const result = [];
-  const pool = [...top30];
-  for (let i = 0; i < count && pool.length > 0; i++) {
-    const idx = (seed + i * 7) % pool.length;
-    result.push(pool[idx]);
-    pool.splice(idx, 1);
+  const selectedIds = new Set();
+
+  // Step 1: 从 topDimPool 取 3 张
+  const topPoolCopy = [...topDimPool];
+  for (let i = 0; i < 3 && topPoolCopy.length > 0; i++) {
+    const idx = (seed + i * 7) % topPoolCopy.length;
+    result.push(topPoolCopy[idx]);
+    selectedIds.add(topPoolCopy[idx].id);
+    topPoolCopy.splice(idx, 1);
   }
+
+  // Step 2: 从 generalPool 补足剩余（排除已选）
+  const generalRemain = generalPool.filter((m) => !selectedIds.has(m.id));
+  const remaining = count - result.length;
+  for (let i = 0; i < remaining && generalRemain.length > 0; i++) {
+    const idx = (seed + (3 + i) * 11) % generalRemain.length;
+    result.push(generalRemain[idx]);
+    selectedIds.add(generalRemain[idx].id);
+    generalRemain.splice(idx, 1);
+  }
+
   return result;
 }
 

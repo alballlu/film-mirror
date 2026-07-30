@@ -17,16 +17,44 @@ const CATEGORIES = [
 const BATCH_SIZE = 24;
 
 function MovieCard({ movie, selected, posterUrl, animationDelay, onToggle }) {
+  const [posterFailed, setPosterFailed] = useState(false);
+
+  const handlePosterError = () => {
+    setPosterFailed(true);
+  };
+
+  // 重置失败状态当 posterUrl 变化
+  useEffect(() => {
+    setPosterFailed(false);
+  }, [posterUrl]);
+
+  const showPoster = posterUrl && !posterFailed;
+  const char = movie.title?.slice(0, 1) || '?';
+
+  // 哈希生成稳定的渐变底色
+  let hue = 0;
+  for (let i = 0; i < (movie.title || '').length; i++) {
+    hue = (hue * 31 + movie.title.charCodeAt(i)) % 360;
+  }
+
   return (
     <div
       className={`movie-card ${selected ? 'selected' : ''}`}
       style={{ animationDelay: `${animationDelay}ms` }}
       onClick={() => onToggle(movie.id)}
     >
-      {posterUrl ? (
+      {/* 无海报 / 海报加载失败时，显示渐变底色 */}
+      {!showPoster && (
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: `linear-gradient(135deg, hsl(${hue}, 30%, 22%), hsl(${(hue + 30) % 360}, 25%, 14%))`,
+        }} />
+      )}
+      {showPoster ? (
         <img
           src={posterUrl}
           alt={movie.title}
+          onError={handlePosterError}
           style={{
             position: 'absolute',
             inset: 0,
@@ -40,17 +68,17 @@ function MovieCard({ movie, selected, posterUrl, animationDelay, onToggle }) {
       <div
         className="movie-first-char"
         style={
-          posterUrl
+          showPoster
             ? { position: 'relative', zIndex: 1, textShadow: '0 2px 8px rgba(0,0,0,0.7)' }
             : {}
         }
       >
-        {movie.title.slice(0, 1)}
+        {char}
       </div>
       <div
         className="movie-card-title"
         style={
-          posterUrl
+          showPoster
             ? { position: 'relative', zIndex: 1, textShadow: '0 1px 4px rgba(0,0,0,0.7)' }
             : {}
         }
@@ -60,7 +88,7 @@ function MovieCard({ movie, selected, posterUrl, animationDelay, onToggle }) {
       <div
         className="movie-card-director"
         style={
-          posterUrl
+          showPoster
             ? { position: 'relative', zIndex: 1, textShadow: '0 1px 4px rgba(0,0,0,0.7)' }
             : {}
         }
