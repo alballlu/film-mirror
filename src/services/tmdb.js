@@ -9,7 +9,8 @@ const BASE_IMG = 'https://image.tmdb.org/t/p/w342';
 // 所有 TMDB API 调用走同源代理（解决中国大陆网络限制 + 隐藏 API Key）
 const PROXY_URL = import.meta.env.VITE_TMDB_API_URL || '';
 const USE_PROXY = !!PROXY_URL;
-const MISSING_KEY = !USE_PROXY && !API_KEY;
+// 只要有代理 URL 或直连 API_KEY 任一可用即可
+// 代理优先，代理不可用时回退直连（API_KEY 由构建时注入或本地 .env 提供）
 
 // ── 请求超时配置 ──────────────────────────────────────────────
 const FETCH_TIMEOUT = 5000; // 单次请求超时 5 秒
@@ -29,15 +30,21 @@ async function fetchWithTimeout(url, timeoutMs = FETCH_TIMEOUT) {
   }
 }
 
-// ── 统一 TMDB API 请求：有代理走代理，无代理直连 ──────────────
+// ── 统一 TMDB API 请求：代理优先，失败回退直连 ──────────────
 async function tmdbFetch(endpoint, queryParams = {}) {
   if (USE_PROXY) {
-    // 走 Vercel Serverless 代理（API Key 在服务端注入，前端不传）
+    // 优先走 Cloudflare Functions 代理（API Key 在服务端注入）
     const proxyParams = new URLSearchParams(queryParams);
     const url = `${PROXY_URL}?${proxyParams}`;
-    return fetchWithTimeout(url);
+    const res = await fetchWithTimeout(url);
+    // 代理成功（200）直接返回；失败（4xx/5xx）回退直连
+    if (res.ok) return res;
+    console.warn('[FilmMirror] 代理请求失败，回退直连 TMDB');
   }
-  // 直连 TMDB API
+  // 直连 TMDB API（需要 API_KEY）
+  if (!API_KEY) {
+    throw new Error('TMDB API Key 未配置');
+  }
   const params = new URLSearchParams({ api_key: API_KEY, ...queryParams });
   const url = `${BASE_URL}${endpoint}?${params}`;
   return fetchWithTimeout(url);
@@ -346,7 +353,7 @@ export async function enrichExternalMoviesBatch(externalMovies) {
 // ── TMDB 在线搜索（缓存 + 限流 + 错误兜底）───────────────────
 export async function searchTMDBMulti(query) {
   if (!query.trim()) return [];
-  if (MISSING_KEY) {
+  if (!USE_PROXY && !API_KEY) {
     console.warn('[FilmMirror] TMDB API Key 未配置，搜索不可用');
     return [];
   }
