@@ -27,7 +27,7 @@ jobs:
           enablement: true
 
       - run: npm ci
-      - run: npm run build
+      - run: npx vite build --base /film-mirror/
         env:
           VITE_TMDB_API_KEY: ${{ secrets.VITE_TMDB_API_KEY }}
 
