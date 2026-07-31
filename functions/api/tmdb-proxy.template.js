@@ -1,8 +1,10 @@
 // Cloudflare Pages Function — TMDB API 反向代理
-// 部署后前端调 /api/tmdb-proxy 替代直接调 api.themoviedb.org
+// ⚠️ 此文件是模板，构建时由 scripts/inject-env.js 替换 __TMDB_API_KEY__ 后生成 tmdb-proxy.js
 // 用法: /api/tmdb-proxy?action=search&query=xxx&year=2020&language=zh-CN
 
 const TMDB_BASE = 'https://api.themoviedb.org/3';
+// __TMDB_API_KEY__ 会在构建时被替换为真实的 API Key
+const API_KEY = '__TMDB_API_KEY__';
 
 const ENDPOINTS = {
   search: '/search/movie',
@@ -11,8 +13,7 @@ const ENDPOINTS = {
 };
 
 export async function onRequest(context) {
-  const { request, env } = context;
-  const API_KEY = env.TMDB_API_KEY || '';
+  const { request } = context;
 
   console.log(`[tmdb-proxy] 收到请求: ${request.url}`);
 
@@ -32,10 +33,10 @@ export async function onRequest(context) {
   }
 
   if (!API_KEY) {
-    console.error('[tmdb-proxy] ⚠️ TMDB_API_KEY 未配置！请在 Cloudflare Dashboard → Settings → Environment variables 中添加');
+    console.error('[tmdb-proxy] ⚠️ TMDB_API_KEY 未注入！构建脚本可能未运行');
     return json({
-      error: 'TMDB_API_KEY 未在服务器配置',
-      hint: '请在 Cloudflare Dashboard → Settings → Environment variables 中添加 TMDB_API_KEY 变量，然后重新部署',
+      error: 'TMDB_API_KEY 未配置',
+      hint: '构建时 scripts/inject-env.js 未能注入 Key，请检查 Cloudflare 环境变量 TMDB_API_KEY 是否已设置',
       hasKey: false,
     }, 500);
   }
