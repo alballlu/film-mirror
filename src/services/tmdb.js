@@ -12,6 +12,14 @@ const USE_PROXY = !!PROXY_URL;
 // 只要有代理 URL 或直连 API_KEY 任一可用即可
 // 代理优先，代理不可用时回退直连（API_KEY 由构建时注入或本地 .env 提供）
 
+// ── 启动诊断日志 ──────────────────────────────────────────────
+if (typeof window !== 'undefined') {
+  const mode = USE_PROXY
+    ? (API_KEY ? '🟢 代理优先 + 直连兜底' : '🟡 仅代理（无直连兜底，请在 Cloudflare 添加 VITE_TMDB_API_KEY）')
+    : (API_KEY ? '🔵 仅直连 TMDB（未配置代理）' : '🔴 未配置任何 TMDB 访问方式！');
+  console.log(`[FilmMirror] TMDB 模式: ${mode}`);
+}
+
 // ── 请求超时配置 ──────────────────────────────────────────────
 const FETCH_TIMEOUT = 5000; // 单次请求超时 5 秒
 
@@ -31,23 +39,38 @@ async function fetchWithTimeout(url, timeoutMs = FETCH_TIMEOUT) {
 }
 
 // ── 统一 TMDB API 请求：代理优先，失败回退直连 ──────────────
-async function tmdbFetch(endpoint, queryParams = {}) {
+// retry=false 时不再重试（防止无限递归）
+async function tmdbFetch(endpoint, queryParams = {}, retry = true) {
   if (USE_PROXY) {
     // 优先走 Cloudflare Functions 代理（API Key 在服务端注入）
     const proxyParams = new URLSearchParams(queryParams);
     const url = `${PROXY_URL}?${proxyParams}`;
-    const res = await fetchWithTimeout(url);
-    // 代理成功（200）直接返回；失败（4xx/5xx）回退直连
-    if (res.ok) return res;
-    console.warn('[FilmMirror] 代理请求失败，回退直连 TMDB');
+    try {
+      const res = await fetchWithTimeout(url);
+      // 代理成功（200）直接返回；失败（4xx/5xx）回退直连
+      if (res.ok) return res;
+      console.warn(`[FilmMirror] 代理返回 HTTP ${res.status}，回退直连 TMDB`);
+    } catch (e) {
+      console.warn(
+        `[FilmMirror] 代理不可达 (${e.name === 'AbortError' ? '超时' : e.message})，回退直连 TMDB`
+      );
+    }
   }
   // 直连 TMDB API（需要 API_KEY）
   if (!API_KEY) {
-    throw new Error('TMDB API Key 未配置');
+    throw new Error('TMDB API Key 未配置 — 请在 Cloudflare 环境变量中添加 VITE_TMDB_API_KEY');
   }
   const params = new URLSearchParams({ api_key: API_KEY, ...queryParams });
   const url = `${BASE_URL}${endpoint}?${params}`;
-  return fetchWithTimeout(url);
+  try {
+    return await fetchWithTimeout(url);
+  } catch (e) {
+    if (e.name === 'AbortError' && retry) {
+      console.warn('[FilmMirror] 直连 TMDB 超时，重试一次...');
+      return await tmdbFetch(endpoint, queryParams, false);
+    }
+    throw e;
+  }
 }
 
 // ── 搜索缓存（sessionStorage, 5min TTL）────────────────────────
@@ -290,7 +313,6 @@ export function keywordNamesToTags(keywordNames) {
 
 // ── 获取单部 TMDB 电影的 keywords ─────────────────────────────
 export async function fetchTMDBKeywords(tmdbId) {
-  if (MISSING_KEY) return [];
   const cacheKey = `tmdb_kw_${tmdbId}`;
   try {
     const cached = sessionStorage.getItem(cacheKey);
@@ -351,6 +373,36 @@ export async function enrichExternalMoviesBatch(externalMovies) {
 }
 
 // ── TMDB 在线搜索（缓存 + 限流 + 错误兜底）───────────────────
+// ── 代理健康检查（应用启动时调用，console 输出诊断信息）─────
+export async function checkProxyHealth() {
+  if (!USE_PROXY) {
+    console.log('[FilmMirror] ℹ️ 未配置代理 URL，跳过代理检查');
+    return { ok: false, reason: '未配置代理' };
+  }
+  try {
+    const res = await fetchWithTimeout(
+      `${PROXY_URL}?action=search&query=test&language=zh-CN`,
+      4000
+    );
+    if (res.ok) {
+      console.log('[FilmMirror] ✅ TMDB 代理可用 — Cloudflare Functions 正常运行');
+      return { ok: true };
+    }
+    const data = await res.json().catch(() => ({}));
+    console.warn(
+      `[FilmMirror] ⚠️ TMDB 代理返回 HTTP ${res.status}: ${data.error || data.message || '未知错误'}`
+    );
+    console.warn('[FilmMirror] → 将使用直连 TMDB 作为 fallback（需 VITE_TMDB_API_KEY）');
+    return { ok: false, reason: `代理返回 ${res.status}`, detail: data };
+  } catch (e) {
+    console.warn(
+      `[FilmMirror] ❌ TMDB 代理不可达: ${e.name === 'AbortError' ? '连接超时（Functions 未部署或网络不通）' : e.message}`
+    );
+    console.warn('[FilmMirror] → 将使用直连 TMDB 作为 fallback（需 VITE_TMDB_API_KEY）');
+    return { ok: false, reason: e.message };
+  }
+}
+
 export async function searchTMDBMulti(query) {
   if (!query.trim()) return [];
   if (!USE_PROXY && !API_KEY) {
@@ -407,7 +459,6 @@ export async function searchTMDBMulti(query) {
 
 // ── 同类电影推荐 ─────────────────────────────────────────────
 export async function fetchSimilarTMDB(tmdbId, count = 5) {
-  if (MISSING_KEY) return [];
   const realId = String(tmdbId).replace('tmdb_', '');
 
   try {

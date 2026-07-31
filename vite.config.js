@@ -9,4 +9,15 @@ export default defineConfig({
     port: 3000,
     open: true,
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-charts': ['recharts'],
+          'vendor-utils': ['html2canvas', 'qrcode.react', 'canvas-confetti'],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 500,
+  },
 });

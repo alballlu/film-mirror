@@ -1,0 +1,10 @@
+# GitHub Pages 缓存优化 — Vite 构建的静态资源带 hash，可以长期缓存
+/assets/*.js
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/*.css
+  Cache-Control: public, max-age=31536000, immutable
+
+# HTML 入口短期缓存
+/index.html
+  Cache-Control: public, max-age=3600

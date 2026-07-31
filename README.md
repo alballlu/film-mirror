@@ -32,10 +32,12 @@ git push origin main
 
 | 变量名 | 值 |
 |---|---|
-| `TMDB_API_KEY` | 你的 TMDB API Key（Functions 后端用） |
+| `TMDB_API_KEY` | 你的 TMDB API Key（Functions 后端代理 TMDB） |
 | `VITE_TMDB_API_URL` | `/api/tmdb-proxy`（前端构建时注入） |
+| `VITE_TMDB_API_KEY` | 你的 TMDB API Key（🔴 前端兜底直连，代理失败时） |
 
-> ⚠️ 两个变量都要添加，且都勾选 "Production" 和 "Preview" 环境。
+> ⚠️ **三个变量都要添加！** 全部勾选 "Production" 和 "Preview" 环境。
+> `VITE_TMDB_API_KEY` 是兜底方案：当 Cloudflare Functions 代理不可用时，前端直接请求 TMDB。
 
 **第四步：重新部署** — 添加环境变量后，在 Deployments 里点 "Retry deployment" 或推一个新 commit 触发重新构建。
 

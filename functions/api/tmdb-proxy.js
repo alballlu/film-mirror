@@ -14,6 +14,8 @@ export async function onRequest(context) {
   const { request, env } = context;
   const API_KEY = env.TMDB_API_KEY || '';
 
+  console.log(`[tmdb-proxy] 收到请求: ${request.url}`);
+
   if (request.method === 'OPTIONS') {
     return new Response(null, {
       status: 200,
@@ -30,7 +32,12 @@ export async function onRequest(context) {
   }
 
   if (!API_KEY) {
-    return json({ error: 'TMDB_API_KEY not configured on server' }, 500);
+    console.error('[tmdb-proxy] ⚠️ TMDB_API_KEY 未配置！请在 Cloudflare Dashboard → Settings → Environment variables 中添加');
+    return json({
+      error: 'TMDB_API_KEY 未在服务器配置',
+      hint: '请在 Cloudflare Dashboard → Settings → Environment variables 中添加 TMDB_API_KEY 变量，然后重新部署',
+      hasKey: false,
+    }, 500);
   }
 
   const url = new URL(request.url);
@@ -47,12 +54,21 @@ export async function onRequest(context) {
     if (k !== 'action' && k !== 'id') tmdbParams.set(k, v);
   });
 
+  const tmdbUrl = `${TMDB_BASE}${path}?${tmdbParams}`;
+  console.log(`[tmdb-proxy] → 代理到 TMDB: ${action}`);
+
   try {
-    const tmdbRes = await fetch(`${TMDB_BASE}${path}?${tmdbParams}`);
+    const tmdbRes = await fetch(tmdbUrl);
     const data = await tmdbRes.json();
+    console.log(`[tmdb-proxy] ← TMDB 响应: HTTP ${tmdbRes.status}`);
     return json(data, tmdbRes.ok ? 200 : tmdbRes.status);
   } catch (e) {
-    return json({ error: 'Failed to reach TMDB API', detail: e.message }, 502);
+    console.error(`[tmdb-proxy] ❌ 无法连接 TMDB API: ${e.message}`);
+    return json({
+      error: '无法连接 TMDB API',
+      detail: e.message,
+      hasKey: !!API_KEY,
+    }, 502);
   }
 }
 

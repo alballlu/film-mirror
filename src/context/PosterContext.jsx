@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect } from 'react';
 import movies from '../data/movies.json';
 import {
   getCachedPoster, getPosterUrl, getPosterSources,
-  getStaticPosterPath, fetchPosterThrottled,
+  getStaticPosterPath, fetchPosterThrottled, checkProxyHealth,
 } from '../services/tmdb';
 
 const PosterContext = createContext({});
@@ -14,6 +14,9 @@ export function PosterProvider({ children }) {
 
   useEffect(() => {
     let cancelled = false;
+
+    // 启动诊断：代理健康检查（console 输出结果）
+    checkProxyHealth();
 
     // 阶段1：同步加载 — 缓存 + movies.json 预填的 tmdbPosterPath
     const initialPosters = {};
