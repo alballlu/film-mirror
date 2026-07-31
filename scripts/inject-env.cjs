@@ -10,7 +10,11 @@
 const fs = require('fs');
 const path = require('path');
 
-const apiKey = process.env.TMDB_API_KEY || '';
+// Cloudflare Pages 的环境变量行为不一致：
+// - TMDB_API_KEY（无前缀）可能在构建时不可用
+// - VITE_TMDB_API_KEY（VITE_ 前缀）构建时一定可用
+// 优先用 TMDB_API_KEY，fallback 到 VITE_TMDB_API_KEY
+const apiKey = process.env.TMDB_API_KEY || process.env.VITE_TMDB_API_KEY || '';
 
 const functionDir = path.join(__dirname, '..', 'functions', 'api');
 const templates = ['tmdb-proxy', 'health'];
