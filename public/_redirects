@@ -1,5 +1,6 @@
-# 显式透传 API 代理路径，避免被 /* SPA 规则拦截
+# 显式透传 API/图片代理路径，避免被 /* SPA 规则拦截
 /api/tmdb-proxy  /api/tmdb-proxy  200
+/api/tmdb-image  /api/tmdb-image  200
 /api/health      /api/health      200
 
 # SPA 路由 fallback — 所有其他路径回退到 index.html

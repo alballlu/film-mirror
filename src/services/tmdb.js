@@ -147,14 +147,25 @@ const cache = loadCache();
 // ── 多源海报 URL ──────────────────────────────────────────────
 export function getPosterSources(path) {
   if (!path) return [];
+  if (USE_PROXY) {
+    const proxyUrl = `/api/tmdb-image?path=${encodeURIComponent(path)}`;
+    return [proxyUrl];
+  }
   const directUrl = `${BASE_IMG}${path}`;
-  const weservUrl = `https://images.weserv.nl/?url=${encodeURIComponent(directUrl)}&default=1`;
+  const weservUrl = `https://images.weserv.nl/?url=${encodeURIComponent(directUrl)}&default=1&w=342`;
   return [directUrl, weservUrl];
 }
 
 export function getPosterUrl(path) {
   if (!path) return '';
-  return `${BASE_IMG}${path}`;
+  if (USE_PROXY) {
+    // Cloudflare/Vercel 部署：走自有 Function 代理图片
+    // image.tmdb.org 在国内被墙，通过 CF Functions 中转
+    return `/api/tmdb-image?path=${encodeURIComponent(path)}`;
+  }
+  // GitHub Pages / 本地开发：weserv.nl 图片代理兜底
+  const directUrl = `${BASE_IMG}${path}`;
+  return `https://images.weserv.nl/?url=${encodeURIComponent(directUrl)}&default=1&w=342`;
 }
 
 export function getStaticPosterPath(movieId) {
