@@ -395,6 +395,66 @@ export async function searchTMDBMulti(query) {
   }
 }
 
+const DISCOVER_CACHE_PREFIX = 'tmdb_daily_discover_';
+const DAILY_GENRE_IDS = {
+  '悬疑': 9648, '科幻': 878, '喜剧': 35, '爱情': 10749, '恐怖': 27,
+  '动作': 28, '动画': 16, '现实': 18, '犯罪': 80, '惊悚': 53,
+};
+
+export async function fetchDailyCandidatePool(selections) {
+  const genres = (selections.genres || []).filter((genre) => DAILY_GENRE_IDS[genre]);
+  const runtime = selections.session === 'short'
+    ? { with_runtime_lte: '100' }
+    : selections.session === 'long'
+      ? { with_runtime_gte: '120' }
+      : { with_runtime_lte: '140' };
+  const cacheKey = `${DISCOVER_CACHE_PREFIX}${genres.join('-') || 'all'}_${selections.session || 'standard'}`;
+
+  try {
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const entry = JSON.parse(cached);
+      if (Date.now() - entry.ts < 30 * 60 * 1000) return entry.data;
+    }
+  } catch {}
+
+  try {
+    const params = {
+      action: 'discover',
+      language: 'zh-CN',
+      include_adult: 'false',
+      include_video: 'false',
+      sort_by: 'vote_average.desc',
+      'vote_count.gte': '350',
+      page: '1',
+      ...runtime,
+    };
+    if (genres.length) params.with_genres = genres.map((genre) => DAILY_GENRE_IDS[genre]).join('|');
+    const res = await tmdbFetch('/discover/movie', params);
+    if (!res.ok) return [];
+    const data = await res.json();
+    const results = (data.results || []).slice(0, 20).map((movie) => ({
+      id: `tmdb_${movie.id}`,
+      title: movie.title || movie.original_title || '未知电影',
+      titleEn: movie.original_title || '',
+      year: movie.release_date ? Number(movie.release_date.slice(0, 4)) : 0,
+      director: '',
+      tags: genreIdsToTags(movie.genre_ids || []),
+      posterPath: movie.poster_path || '',
+      description: movie.overview || '',
+      popularity: movie.popularity || 0,
+      voteAverage: movie.vote_average || 0,
+      isTMDB: true,
+    }));
+    try {
+      sessionStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data: results }));
+    } catch {}
+    return results;
+  } catch {
+    return [];
+  }
+}
+
 // ── 同类电影推荐 ─────────────────────────────────────────────
 export async function fetchSimilarTMDB(tmdbId, count = 5) {
   const realId = String(tmdbId).replace('tmdb_', '');
