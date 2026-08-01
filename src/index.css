@@ -939,6 +939,18 @@ button:focus-visible,
   line-height: 1.8;
 }
 
+.profile-headline {
+  margin: 0 0 12px;
+  color: var(--text-bright);
+  font-family: var(--font-serif-zh);
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+.profile-paragraph {
+  margin: 0 0 10px;
+}
+
 .profile-evidence {
   display: flex;
   flex-wrap: wrap;
@@ -1141,6 +1153,64 @@ button:focus-visible,
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   padding: 24px;
+}
+
+.career-disclaimer {
+  margin-bottom: 20px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--gold);
+  background: rgba(201, 168, 108, 0.06);
+}
+
+.career-paths {
+  display: grid;
+  gap: 14px;
+}
+
+.career-path-card {
+  padding: 18px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--bg-main);
+}
+
+.career-path-heading {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.career-path-heading > span {
+  flex-shrink: 0;
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: var(--gold);
+  color: var(--bg-main);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.career-path-heading h4 {
+  margin: 0;
+  color: var(--text-bright);
+  font-family: var(--font-serif-zh);
+  font-size: 16px;
+}
+
+.career-path-card p {
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.career-path-card p strong {
+  color: var(--text-primary);
+}
+
+.career-path-card .career-experiment {
+  color: var(--text-primary);
 }
 
 .career-note {
