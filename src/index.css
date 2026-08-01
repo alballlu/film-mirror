@@ -876,6 +876,93 @@ button:focus-visible,
   padding: 48px 24px 80px;
 }
 
+.personality-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.8fr);
+  gap: 24px;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+.radar-container {
+  min-width: 0;
+}
+
+.personality-radar {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  overflow: visible;
+}
+
+.radar-grid,
+.radar-axis {
+  fill: none;
+  stroke: var(--border-default);
+  stroke-width: 1;
+}
+
+.radar-grid { opacity: 0.8; }
+.radar-axis { opacity: 0.55; }
+
+.radar-shape {
+  fill: rgba(201, 168, 108, 0.22);
+  stroke: var(--gold);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  transition: points 0.65s ease, opacity 0.35s ease;
+}
+
+.radar-dot {
+  fill: var(--gold);
+  stroke: var(--bg-main);
+  stroke-width: 2;
+}
+
+.radar-label {
+  fill: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+
+.radar-score {
+  fill: var(--gold);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.personality-summary {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.profile-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 16px;
+  align-items: center;
+}
+
+.profile-evidence span {
+  width: 100%;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.profile-evidence strong {
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(201, 168, 108, 0.24);
+  background: rgba(201, 168, 108, 0.08);
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .dim-bar {
   height: 6px;
   border-radius: 3px;
@@ -1030,6 +1117,13 @@ button:focus-visible,
   color: var(--gold);
   font-weight: 600;
   margin-bottom: 4px;
+}
+
+.rec-movie-info .match-reasons {
+  margin-bottom: 5px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.4;
 }
 
 .rec-movie-info .rec-desc {
@@ -1297,6 +1391,17 @@ button:focus-visible,
 }
 
 /* ========== Mobile Responsive ========== */
+@media (max-width: 700px) {
+  .personality-section {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .personality-radar {
+    max-width: 360px;
+  }
+}
+
 @media (max-width: 480px) {
   .home-card { padding: 32px 24px; }
   .card-title { font-size: 19px; }

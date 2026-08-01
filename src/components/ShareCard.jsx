@@ -4,7 +4,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { getPersonalityName, pickSharePosters } from '../utils/personalityEngine';
 import { usePosterContext } from '../context/PosterContext';
 
-const SITE_URL = 'https://ualbal0528-stack.github.io/film-mirror/';
+const SITE_URL = 'https://film-mirror.pages.dev/';
 
 // 拼贴布局：5 张海报的 (x%, y%, width%, height%, rotate, zIndex)
 const COLLAGE_LAYOUT = [
@@ -115,15 +115,15 @@ function TicketStub() {
   );
 }
 
-export default function ShareCard({ scores, selectedMovieIds }) {
+export default function ShareCard({ scores, selectedMovieIds, tags, externalMovies }) {
   const cardRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const { posterSources } = usePosterContext();
 
   const personality = useMemo(() => getPersonalityName(scores), [scores]);
   const sharePosters = useMemo(
-    () => pickSharePosters(scores, selectedMovieIds || [], 5),
-    [scores, selectedMovieIds]
+    () => pickSharePosters(scores, selectedMovieIds || [], 5, tags, externalMovies),
+    [scores, selectedMovieIds, tags, externalMovies]
   );
 
   // 票号（确定性，基于 scores）

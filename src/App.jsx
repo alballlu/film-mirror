@@ -10,6 +10,7 @@ const PersonalityProfile = lazy(() => import('./components/PersonalityProfile'))
 const Recommendation = lazy(() => import('./components/Recommendation'));
 const DailyContext = lazy(() => import('./components/DailyContext'));
 const DailyResult = lazy(() => import('./components/DailyResult'));
+const PROFILE_ALGORITHM_VERSION = 2;
 
 // 路由级 loading fallback
 function PageLoader() {
@@ -31,9 +32,14 @@ export default function App() {
   const [flowAData, setFlowAData] = useState(() => {
     try {
       const saved = sessionStorage.getItem('filmmirror_flow_a');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.profileVersion === PROFILE_ALGORITHM_VERSION
+          ? parsed
+          : { ...parsed, scores: null, profileVersion: PROFILE_ALGORITHM_VERSION };
+      }
     } catch {}
-    return { selectedMovies: [], tags: [], scores: null, externalMovies: {} };
+    return { selectedMovies: [], tags: [], scores: null, externalMovies: {}, profileVersion: PROFILE_ALGORITHM_VERSION };
   });
   const [flowBData, setFlowBData] = useState(() => {
     try {
@@ -117,7 +123,7 @@ export default function App() {
                 externalMovies={flowAData.externalMovies}
                 enriching={enriching}
                 onNext={(tags) => {
-                  updateFlowA({ tags });
+                  updateFlowA({ tags, scores: null, profileVersion: PROFILE_ALGORITHM_VERSION });
                   if (window.umami) window.umami.track('flow_a_tags_complete', { tag_count: tags.length });
                   navigate('/flow-a/step3');
                 }}
