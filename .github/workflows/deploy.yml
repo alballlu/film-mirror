@@ -1,39 +1,10 @@
-name: Deploy to GitHub Pages
+name: Legacy GitHub Pages deployment (disabled)
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
-  build-and-deploy:
+  notice:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
-      - run: npm ci
-      - run: npx vite build --base /film-mirror/
-        env:
-          VITE_TMDB_API_KEY: ${{ secrets.VITE_TMDB_API_KEY }}
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - run: echo "GitHub Pages deployment is disabled. Cloudflare Pages is the only production environment."

@@ -143,7 +143,7 @@ export default function ShareCard({ scores, selectedMovieIds }) {
   const handleDownload = async () => {
     if (!cardRef.current) return;
     setSaving(true);
-    if (window.umami) umami.track('share_card_download');
+    if (window.umami) window.umami.track('share_card_download');
     try {
       const canvas = await html2canvas(cardRef.current, {
         scale: 2,

@@ -1,24 +1,8 @@
-import movies from '../data/movies.json';
 import tmdbGenreMap from '../data/tmdbGenreMap.json';
 
-const API_KEY = import.meta.env.VITE_TMDB_API_KEY || '';
-const BASE_URL = 'https://api.themoviedb.org/3';
-const BASE_IMG = 'https://image.tmdb.org/t/p/w342';
-
-// Vercel 代理模式：设置 VITE_TMDB_API_URL=/api/tmdb-proxy 后，
-// 所有 TMDB API 调用走同源代理（解决中国大陆网络限制 + 隐藏 API Key）
-const PROXY_URL = import.meta.env.VITE_TMDB_API_URL || '';
-const USE_PROXY = !!PROXY_URL;
-// 只要有代理 URL 或直连 API_KEY 任一可用即可
-// 代理优先，代理不可用时回退直连（API_KEY 由构建时注入或本地 .env 提供）
-
-// ── 启动诊断日志 ──────────────────────────────────────────────
-if (typeof window !== 'undefined') {
-  const mode = USE_PROXY
-    ? (API_KEY ? '🟢 代理优先 + 直连兜底' : '🟡 仅代理（无直连兜底，请在 Cloudflare 添加 VITE_TMDB_API_KEY）')
-    : (API_KEY ? '🔵 仅直连 TMDB（未配置代理）' : '🔴 未配置任何 TMDB 访问方式！');
-  console.log(`[FilmMirror] TMDB 模式: ${mode}`);
-}
+// Cloudflare Pages 是唯一生产环境。浏览器只访问同源 Functions，
+// TMDB Key 仅保存在 Cloudflare 的运行时变量中，不进入前端构建产物。
+const PROXY_URL = import.meta.env.VITE_TMDB_API_URL || '/api/tmdb-proxy';
 
 // ── 请求超时配置 ──────────────────────────────────────────────
 const FETCH_TIMEOUT = 5000; // 单次请求超时 5 秒
@@ -38,39 +22,10 @@ async function fetchWithTimeout(url, timeoutMs = FETCH_TIMEOUT) {
   }
 }
 
-// ── 统一 TMDB API 请求：代理优先，失败回退直连 ──────────────
-// retry=false 时不再重试（防止无限递归）
-async function tmdbFetch(endpoint, queryParams = {}, retry = true) {
-  if (USE_PROXY) {
-    // 优先走 Cloudflare Functions 代理（API Key 在服务端注入）
-    const proxyParams = new URLSearchParams(queryParams);
-    const url = `${PROXY_URL}?${proxyParams}`;
-    try {
-      const res = await fetchWithTimeout(url);
-      // 代理成功（200）直接返回；失败（4xx/5xx）回退直连
-      if (res.ok) return res;
-      console.warn(`[FilmMirror] 代理返回 HTTP ${res.status}，回退直连 TMDB`);
-    } catch (e) {
-      console.warn(
-        `[FilmMirror] 代理不可达 (${e.name === 'AbortError' ? '超时' : e.message})，回退直连 TMDB`
-      );
-    }
-  }
-  // 直连 TMDB API（需要 API_KEY）
-  if (!API_KEY) {
-    throw new Error('TMDB API Key 未配置 — 请在 Cloudflare 环境变量中添加 VITE_TMDB_API_KEY');
-  }
-  const params = new URLSearchParams({ api_key: API_KEY, ...queryParams });
-  const url = `${BASE_URL}${endpoint}?${params}`;
-  try {
-    return await fetchWithTimeout(url);
-  } catch (e) {
-    if (e.name === 'AbortError' && retry) {
-      console.warn('[FilmMirror] 直连 TMDB 超时，重试一次...');
-      return await tmdbFetch(endpoint, queryParams, false);
-    }
-    throw e;
-  }
+// endpoint 由调用方保留用于可读性；真正路由由 action 参数决定。
+async function tmdbFetch(_endpoint, queryParams = {}) {
+  const proxyParams = new URLSearchParams(queryParams);
+  return fetchWithTimeout(`${PROXY_URL}?${proxyParams}`);
 }
 
 // ── 搜索缓存（sessionStorage, 5min TTL）────────────────────────
@@ -147,29 +102,15 @@ const cache = loadCache();
 // ── 多源海报 URL ──────────────────────────────────────────────
 export function getPosterSources(path) {
   if (!path) return [];
-  if (USE_PROXY) {
-    const proxyUrl = `/api/tmdb-image?path=${encodeURIComponent(path)}`;
-    return [proxyUrl];
-  }
-  const directUrl = `${BASE_IMG}${path}`;
-  const weservUrl = `https://images.weserv.nl/?url=${encodeURIComponent(directUrl)}&default=1&w=342`;
-  return [directUrl, weservUrl];
+  return [`/api/tmdb-image?path=${encodeURIComponent(path)}`];
 }
 
 export function getPosterUrl(path) {
   if (!path) return '';
-  if (USE_PROXY) {
-    // Cloudflare/Vercel 部署：走自有 Function 代理图片
-    // image.tmdb.org 在国内被墙，通过 CF Functions 中转
-    return `/api/tmdb-image?path=${encodeURIComponent(path)}`;
-  }
-  // GitHub Pages / 本地开发：weserv.nl 图片代理兜底
-  const directUrl = `${BASE_IMG}${path}`;
-  return `https://images.weserv.nl/?url=${encodeURIComponent(directUrl)}&default=1&w=342`;
+  return `/api/tmdb-image?path=${encodeURIComponent(path)}`;
 }
 
-export function getStaticPosterPath(movieId) {
-  const movie = movies.find((m) => m.id === movieId);
+export function getStaticPosterPath(movie) {
   return movie?.tmdbPosterPath || '';
 }
 
@@ -213,6 +154,7 @@ export async function fetchPosterForMovie(movie) {
 
 // ── 海报队列节流（并发 batch + 超时控制）─────────────────────
 const RATE_QUEUE = [];
+const pendingPosters = new Map();
 let processing = false;
 const POSTER_CONCURRENCY = 3; // 每批并发数
 const BATCH_DELAY = 300;      // 批次间延迟 ms
@@ -254,10 +196,15 @@ export function fetchPosterThrottled(movie) {
   if (cache[movie.id] !== undefined) {
     return Promise.resolve(cache[movie.id]);
   }
-  return new Promise((resolve) => {
+  if (pendingPosters.has(movie.id)) return pendingPosters.get(movie.id);
+
+  const request = new Promise((resolve) => {
     RATE_QUEUE.push({ movie, resolve });
     processQueue();
   });
+  pendingPosters.set(movie.id, request);
+  request.finally(() => pendingPosters.delete(movie.id));
+  return request;
 }
 
 // ── TMDB 流派 ID → 本地 tag ──────────────────────────────────
@@ -386,40 +333,20 @@ export async function enrichExternalMoviesBatch(externalMovies) {
 // ── TMDB 在线搜索（缓存 + 限流 + 错误兜底）───────────────────
 // ── 代理健康检查（应用启动时调用，console 输出诊断信息）─────
 export async function checkProxyHealth() {
-  if (!USE_PROXY) {
-    console.log('[FilmMirror] ℹ️ 未配置代理 URL，跳过代理检查');
-    return { ok: false, reason: '未配置代理' };
-  }
   try {
-    const res = await fetchWithTimeout(
-      `${PROXY_URL}?action=search&query=test&language=zh-CN`,
-      4000
-    );
+    const res = await fetchWithTimeout('/api/health', 5000);
     if (res.ok) {
-      console.log('[FilmMirror] ✅ TMDB 代理可用 — Cloudflare Functions 正常运行');
       return { ok: true };
     }
     const data = await res.json().catch(() => ({}));
-    console.warn(
-      `[FilmMirror] ⚠️ TMDB 代理返回 HTTP ${res.status}: ${data.error || data.message || '未知错误'}`
-    );
-    console.warn('[FilmMirror] → 将使用直连 TMDB 作为 fallback（需 VITE_TMDB_API_KEY）');
-    return { ok: false, reason: `代理返回 ${res.status}`, detail: data };
+    return { ok: false, reason: `proxy_${res.status}`, detail: data };
   } catch (e) {
-    console.warn(
-      `[FilmMirror] ❌ TMDB 代理不可达: ${e.name === 'AbortError' ? '连接超时（Functions 未部署或网络不通）' : e.message}`
-    );
-    console.warn('[FilmMirror] → 将使用直连 TMDB 作为 fallback（需 VITE_TMDB_API_KEY）');
-    return { ok: false, reason: e.message };
+    return { ok: false, reason: e.name === 'AbortError' ? 'proxy_timeout' : 'proxy_unavailable' };
   }
 }
 
 export async function searchTMDBMulti(query) {
   if (!query.trim()) return [];
-  if (!USE_PROXY && !API_KEY) {
-    console.warn('[FilmMirror] TMDB API Key 未配置，搜索不可用');
-    return [];
-  }
 
   const cached = getSearchCache(query);
   if (cached) return cached;

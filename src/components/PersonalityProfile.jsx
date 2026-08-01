@@ -45,7 +45,7 @@ export default function PersonalityProfile({ tags, selectedMovieIds, onNext, onB
   }, []);
 
   useEffect(() => {
-    if (window.umami) umami.track('flow_a_complete');
+    if (window.umami) window.umami.track('flow_a_profile_view');
     setConfettiTrigger(true);
   }, []);
 
@@ -56,20 +56,21 @@ export default function PersonalityProfile({ tags, selectedMovieIds, onNext, onB
 
   const generateShareContent = () => {
     const topDims = sortedDims.slice(0, 2).map(([d, s]) => `${d}(${s}%)`).join(' · ');
-    return `🎬 我在 FilmMirror 做了电影性格测试！\n\n我的性格画像关键词：${topDims}\n\n${summary}\n\n→ 来测测你的：film-mirror.vercel.app\n\n#FilmMirror #电影镜像 #电影性格测试`;
+    return `🎬 我在 FilmMirror 做了电影性格测试！\n\n我的性格画像关键词：${topDims}\n\n${summary}\n\n→ 来测测你的：https://film-mirror.pages.dev/\n\n#FilmMirror #电影镜像 #电影性格测试`;
   };
 
   const copyShareText = () => {
     const content = generateShareContent();
     setShareText(content);
     navigator.clipboard.writeText(content).catch(() => {});
+    if (window.umami) window.umami.track('profile_share_copy');
   };
 
   const handleLike = () => {
     const newLiked = !liked;
     setLiked(newLiked);
     localStorage.setItem('filmmirror_liked', String(newLiked));
-    if (newLiked && window.umami) umami.track('like_result');
+    if (newLiked && window.umami) window.umami.track('like_result');
   };
 
   const handleFeedback = async () => {
@@ -90,16 +91,16 @@ export default function PersonalityProfile({ tags, selectedMovieIds, onNext, onB
       const result = await res.json();
       if (result.success) {
         setFeedbackSent(true);
-        if (window.umami) umami.track('feedback_submitted');
+        if (window.umami) window.umami.track('feedback_submitted');
       }
     } catch (e) {}
     setFeedbackSending(false);
   };
 
   return (
-    <div className="page animate-fade-in">
+    <div className="page personality-page animate-fade-in">
       <ConfettiEffect trigger={confettiTrigger} />
-      <div className="progress-bar animate-fade-up">
+      <div className="step-progress animate-fade-up" aria-label="深度体验进度：第 3 步，共 4 步">
         <div className="progress-step done">✓</div>
         <div className="progress-line done" />
         <div className="progress-step done">✓</div>

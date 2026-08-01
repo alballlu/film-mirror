@@ -1,86 +1,74 @@
-import { createContext, useContext, useState, useEffect } from 'react';
-import movies from '../data/movies.json';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
-  getCachedPoster, getPosterUrl, getPosterSources,
-  getStaticPosterPath, fetchPosterThrottled, checkProxyHealth,
+  checkProxyHealth,
+  fetchPosterThrottled,
+  getCachedPoster,
+  getPosterSources,
+  getPosterUrl,
+  getStaticPosterPath,
 } from '../services/tmdb';
 
 const PosterContext = createContext({});
 
 export function PosterProvider({ children }) {
   const [posters, setPosters] = useState({});
-  const [posterSources, setPosterSources] = useState({}); // 多源 URLs
-  const [loading, setLoading] = useState(true);
+  const [posterSources, setPosterSources] = useState({});
+  const [loading, setLoading] = useState(false);
+  const requested = useRef(new Set());
 
   useEffect(() => {
-    let cancelled = false;
-
-    // 启动诊断：代理健康检查（console 输出结果）
-    checkProxyHealth();
-
-    // 阶段1：同步加载 — 缓存 + movies.json 预填的 tmdbPosterPath
-    const initialPosters = {};
-    const initialSources = {};
-    movies.forEach((m) => {
-      // 优先：localStorage 缓存
-      const cachedPath = getCachedPoster(m.id);
-      // 其次：movies.json 预填的 tmdbPosterPath
-      const staticPath = getStaticPosterPath(m.id);
-      const path = cachedPath || staticPath;
-
-      if (path) {
-        initialPosters[m.id] = getPosterUrl(path);
-        initialSources[m.id] = getPosterSources(path);
+    checkProxyHealth().then((result) => {
+      if (!result.ok && window.umami) {
+        window.umami.track('tmdb_proxy_unavailable', { reason: result.reason });
       }
     });
-
-    if (!cancelled) {
-      setPosters(initialPosters);
-      setPosterSources(initialSources);
-      // 仍然异步补齐缺失的海报（TMDB API）
-      loadMissingPosters(cancelled);
-    }
-
-    return () => { cancelled = true; };
   }, []);
 
-  async function loadMissingPosters(cancelled) {
-    const batchPosters = {};
-    const batchSources = {};
-    const BATCH_SIZE = 10;
-
-    function flushBatch() {
-      if (Object.keys(batchPosters).length === 0) return;
-      setPosters((prev) => ({ ...prev, ...batchPosters }));
-      setPosterSources((prev) => ({ ...prev, ...batchSources }));
-      // 清空累积
-      for (const k in batchPosters) delete batchPosters[k];
-      for (const k in batchSources) delete batchSources[k];
-    }
-
-    for (const movie of movies) {
-      if (cancelled) break;
-      // 已有就不再请求
-      const cachedPath = getCachedPoster(movie.id);
-      const staticPath = getStaticPosterPath(movie.id);
-      if (cachedPath || staticPath) continue;
-
-      const path = await fetchPosterThrottled(movie);
-      if (path && !cancelled) {
-        batchPosters[movie.id] = getPosterUrl(path);
-        batchSources[movie.id] = getPosterSources(path);
-        if (Object.keys(batchPosters).length >= BATCH_SIZE) {
-          flushBatch();
-        }
+  const ensurePosters = useCallback(async (movieList) => {
+    const readyPosters = {};
+    const readySources = {};
+    const missing = (movieList || []).filter((movie) => {
+      if (!movie || movie.isTMDB || requested.current.has(movie.id)) return false;
+      requested.current.add(movie.id);
+      const path = getCachedPoster(movie.id) || getStaticPosterPath(movie);
+      if (path) {
+        readyPosters[movie.id] = getPosterUrl(path);
+        readySources[movie.id] = getPosterSources(path);
+        return false;
       }
+      return true;
+    });
+
+    if (Object.keys(readyPosters).length > 0) {
+      setPosters((current) => ({ ...current, ...readyPosters }));
+      setPosterSources((current) => ({ ...current, ...readySources }));
     }
-    // 处理剩余不足一批的海报
-    flushBatch();
-    if (!cancelled) setLoading(false);
-  }
+
+    if (missing.length === 0) return;
+    setLoading(true);
+
+    const results = await Promise.allSettled(
+      missing.map(async (movie) => ({ movie, path: await fetchPosterThrottled(movie) }))
+    );
+    const nextPosters = {};
+    const nextSources = {};
+
+    results.forEach((result) => {
+      if (result.status !== 'fulfilled' || !result.value.path) return;
+      const { movie, path } = result.value;
+      nextPosters[movie.id] = getPosterUrl(path);
+      nextSources[movie.id] = getPosterSources(path);
+    });
+
+    if (Object.keys(nextPosters).length > 0) {
+      setPosters((current) => ({ ...current, ...nextPosters }));
+      setPosterSources((current) => ({ ...current, ...nextSources }));
+    }
+    setLoading(false);
+  }, []);
 
   return (
-    <PosterContext.Provider value={{ posters, posterSources, loading }}>
+    <PosterContext.Provider value={{ posters, posterSources, loading, ensurePosters }}>
       {children}
     </PosterContext.Provider>
   );

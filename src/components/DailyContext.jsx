@@ -65,6 +65,15 @@ export default function DailyContext({ onNext, onBack }) {
             key={item.key}
             className={`context-option ${selected === item.key ? 'selected' : ''}`}
             onClick={() => setter(item.key)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                setter(item.key);
+              }
+            }}
+            role="radio"
+            aria-checked={selected === item.key}
+            tabIndex={0}
           >
             <span className="emoji">{item.emoji}</span>
             <span className="label">{item.label}</span>
@@ -75,7 +84,7 @@ export default function DailyContext({ onNext, onBack }) {
   );
 
   return (
-    <div className="page animate-fade-in">
+    <div className="page daily-context-page animate-fade-in">
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
         <button className="btn-ghost" onClick={onBack}>← 首页</button>
         <h2 className="section-title" style={{ marginBottom: 0 }}>

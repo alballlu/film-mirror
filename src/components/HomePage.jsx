@@ -1,4 +1,21 @@
 export default function HomePage({ onDeepClick, onDailyClick }) {
+  const handleKeyboardActivate = (event, action) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      action();
+    }
+  };
+
+  const startDeepFlow = () => {
+    if (window.umami) window.umami.track('flow_a_start');
+    onDeepClick();
+  };
+
+  const startDailyFlow = () => {
+    if (window.umami) window.umami.track('flow_b_start');
+    onDailyClick();
+  };
+
   return (
     <div className="home-page-container">
       {/* Background orbs */}
@@ -14,10 +31,13 @@ export default function HomePage({ onDeepClick, onDailyClick }) {
       {/* Cards */}
       <div className="home-cards">
         {/* Deep Experience Card */}
-        <div className="home-card" onClick={() => {
-          if (window.umami) umami.track('flow_a_start');
-          onDeepClick();
-        }}>
+        <div
+          className="home-card"
+          role="button"
+          tabIndex={0}
+          onClick={startDeepFlow}
+          onKeyDown={(event) => handleKeyboardActivate(event, startDeepFlow)}
+        >
           <div className="card-symbol">PROFILE</div>
           <h2 className="card-title">探索你的电影性格</h2>
           <p className="card-desc">
@@ -28,7 +48,13 @@ export default function HomePage({ onDeepClick, onDailyClick }) {
         </div>
 
         {/* Daily Card */}
-        <div className="home-card" onClick={onDailyClick}>
+        <div
+          className="home-card"
+          role="button"
+          tabIndex={0}
+          onClick={startDailyFlow}
+          onKeyDown={(event) => handleKeyboardActivate(event, startDailyFlow)}
+        >
           <div className="card-symbol">TODAY</div>
           <h2 className="card-title">今天该看什么？</h2>
           <p className="card-desc">
