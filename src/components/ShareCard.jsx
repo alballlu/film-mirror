@@ -3,6 +3,7 @@ import html2canvas from 'html2canvas';
 import { QRCodeSVG } from 'qrcode.react';
 import { buildPreferenceProfile, getPersonalityName, pickSharePosters } from '../utils/personalityEngine';
 import { usePosterContext } from '../context/PosterContext';
+import { trackEvent } from '../utils/analytics';
 
 const SITE_URL = 'https://film-mirror.pages.dev/';
 
@@ -147,7 +148,7 @@ export default function ShareCard({ scores, selectedMovieIds, tags, externalMovi
   const handleDownload = async () => {
     if (!cardRef.current) return;
     setSaving(true);
-    if (window.umami) window.umami.track('share_card_download');
+      trackEvent('share', { flow: 'a', share_type: 'download_card', result_type: 'personality_profile' });
     try {
       const canvas = await html2canvas(cardRef.current, {
         scale: 2,

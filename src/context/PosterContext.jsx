@@ -7,6 +7,7 @@ import {
   getPosterUrl,
   getStaticPosterPath,
 } from '../services/tmdb';
+import { trackApiError, trackEvent } from '../utils/analytics';
 
 const PosterContext = createContext({});
 
@@ -18,8 +19,8 @@ export function PosterProvider({ children }) {
 
   useEffect(() => {
     checkProxyHealth().then((result) => {
-      if (!result.ok && window.umami) {
-        window.umami.track('tmdb_proxy_unavailable', { reason: result.reason });
+      if (!result.ok) {
+        trackApiError('health', result.reason, true);
       }
     });
   }, []);
@@ -54,7 +55,15 @@ export function PosterProvider({ children }) {
     const nextSources = {};
 
     results.forEach((result) => {
-      if (result.status !== 'fulfilled' || !result.value.path) return;
+      if (result.status !== 'fulfilled' || !result.value.path) {
+        const movie = result.status === 'fulfilled' ? result.value.movie : null;
+        trackEvent('poster_error', {
+          movie_id: movie?.id || 'unknown',
+          poster_source: 'tmdb_search',
+          reason: result.status === 'rejected' ? 'request_rejected' : 'poster_not_found',
+        });
+        return;
+      }
       const { movie, path } = result.value;
       nextPosters[movie.id] = getPosterUrl(path);
       nextSources[movie.id] = getPosterSources(path);

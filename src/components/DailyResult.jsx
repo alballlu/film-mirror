@@ -3,6 +3,7 @@ import { getDailyRecommendations, generateInterpretation } from '../utils/dailyE
 import { usePosterContext } from '../context/PosterContext';
 import { fetchDailyCandidatePool, getPosterUrl } from '../services/tmdb';
 import ConfettiEffect from './ConfettiEffect';
+import { trackEvent, trackEventOnce } from '../utils/analytics';
 
 const FEEDBACK_ACTIONS = [
   { key: 'want', label: '＋ 想看' },
@@ -34,7 +35,7 @@ export default function DailyResult({ data, onBack, onRestart }) {
       if (!active) return;
       setExternalPool(pool);
       setIsExpanding(false);
-      if (window.umami) window.umami.track('daily_pool_expanded', { candidate_count: pool.length });
+      trackEvent('candidate_pool_expanded', { flow: 'b', candidate_count: pool.length });
     });
     return () => { active = false; };
   }, [data]);
@@ -45,12 +46,19 @@ export default function DailyResult({ data, onBack, onRestart }) {
   }, [ensurePosters, result?.mirror?.movie?.id, result?.window?.movie?.id]);
 
   useEffect(() => {
-    if (window.umami) window.umami.track('flow_b_complete');
-  }, []);
+    if (!result) return;
+    trackEventOnce('result_view', {
+      flow: 'b',
+      result_type: 'daily_recommendation',
+      candidate_count: result.poolSize,
+      mirror_movie_id: result.mirror.movie.id,
+      window_movie_id: result.window.movie.id,
+    }, 'result_view:b');
+  }, [result]);
 
   const handleReroll = () => {
     if (isRerolling || !result) return;
-    if (window.umami) window.umami.track('daily_reroll');
+    trackEvent('reroll', { flow: 'b', reroll_number: rerollKey + 1 });
     setIsRerolling(true);
     window.setTimeout(() => {
       const newExcluded = [...excludedIds, result.mirror.movie.id, result.window.movie.id];
@@ -82,7 +90,7 @@ export default function DailyResult({ data, onBack, onRestart }) {
     } catch {
       setToast('复制失败，请稍后重试');
     }
-    if (window.umami) window.umami.track('daily_share_copy');
+    trackEvent('share', { flow: 'b', share_type: 'copy_text', result_mode: selectedMode });
   };
 
   const submitFeedback = (mode, action, reason = '') => {
@@ -96,7 +104,13 @@ export default function DailyResult({ data, onBack, onRestart }) {
       localStorage.setItem('filmmirror_daily_feedback', JSON.stringify([...history.slice(-49), { ...payload, at: Date.now() }]));
     } catch {}
     setToast(action === 'want' ? '已加入“想看”记录' : action === 'seen' ? '已记录“看过”' : '收到，下一轮会避开');
-    if (window.umami) window.umami.track('daily_feedback', { mode, action, reason });
+    trackEvent('recommendation_feedback', {
+      flow: 'b',
+      result_mode: mode,
+      action,
+      reason,
+      movie_id: movie.id,
+    });
   };
 
   const posterFor = (movie) => movie.isTMDB && movie.posterPath
@@ -123,7 +137,16 @@ export default function DailyResult({ data, onBack, onRestart }) {
         </div>
         <button type="button" className="track-select" onClick={() => setSelectedMode(mode)} aria-label={`选择${label}推荐《${movie.title}》`}>
           <div className="track-poster">
-            {poster ? <img src={poster} alt={`${movie.title}海报`} decoding="async" /> : <span>{movie.title.slice(0, 1)}</span>}
+            {poster ? <img
+              src={poster}
+              alt={`${movie.title}海报`}
+              decoding="async"
+              onError={() => trackEvent('poster_error', {
+                flow: 'b',
+                movie_id: movie.id,
+                poster_source: movie.isTMDB ? 'tmdb_dynamic' : 'tmdb_proxy',
+              })}
+            /> : <span>{movie.title.slice(0, 1)}</span>}
           </div>
           <div className="track-copy">
             <h4>{movie.title}</h4>
