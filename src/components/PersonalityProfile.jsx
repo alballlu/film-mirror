@@ -67,6 +67,7 @@ export default function PersonalityProfile({ tags, selectedMovieIds, externalMov
   const [feedback, setFeedback] = useState(() => localStorage.getItem('filmmirror_feedback') || '');
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [feedbackSending, setFeedbackSending] = useState(false);
+  const [toast, setToast] = useState('');
 
   const preferenceTags = useMemo(
     () => buildPreferenceProfile(selectedMovieIds, tags, externalMovies),
@@ -107,9 +108,17 @@ export default function PersonalityProfile({ tags, selectedMovieIds, externalMov
   const copyShareText = () => {
     const content = generateShareContent();
     setShareText(content);
-    navigator.clipboard.writeText(content).catch(() => {});
+    navigator.clipboard.writeText(content)
+      .then(() => setToast('分享文案已复制'))
+      .catch(() => setToast('复制失败，请长按下方文案复制'));
     if (window.umami) window.umami.track('profile_share_copy');
   };
+
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timer = window.setTimeout(() => setToast(''), 2200);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   const handleLike = () => {
     const newLiked = !liked;
@@ -237,6 +246,8 @@ export default function PersonalityProfile({ tags, selectedMovieIds, externalMov
           📋 复制分享文案
         </button>
       </div>
+
+      {toast && <div className="app-toast" role="status" aria-live="polite">{toast}</div>}
 
       {/* 分享卡弹窗 */}
       {showCard && (

@@ -1,6 +1,4 @@
 import movies from '../data/movies.json';
-import contextMapping from '../data/contextMapping.json';
-import dailyTexts from '../data/dailyTexts.json';
 
 function deterministicHash(str) {
   let hash = 0;
@@ -11,179 +9,99 @@ function deterministicHash(str) {
   return Math.abs(hash);
 }
 
-export function getAllContextTags(selections) {
-  const tags = [];
-  const { mood, weather, relationship, travel } = selections;
+const EFFECT_TAGS = {
+  relax: ['喜剧', '治愈', '温暖', '日常', '轻松', '动画'],
+  cry: ['悲剧', '亲情', '爱情', '告别', '成长', '感动'],
+  think: ['悬疑', '推理', '烧脑', '哲学', '反转', '科幻'],
+  excite: ['动作', '冒险', '犯罪', '音乐', '喜剧', '节奏'],
+  scare: ['恐怖', '惊悚', '心理', '悬疑', '黑暗'],
+  strength: ['成长', '希望', '梦想', '女性', '生存', '救赎'],
+  surprise: ['荒诞', '奇幻', '非线性叙事', '反转', '黑色幽默', '实验'],
+};
 
-  if (mood && contextMapping.mood[mood]) {
-    tags.push(...contextMapping.mood[mood]);
-  }
-  if (weather && contextMapping.weather[weather]) {
-    tags.push(...contextMapping.weather[weather]);
-  }
-  if (relationship && contextMapping.relationship[relationship]) {
-    tags.push(...contextMapping.relationship[relationship]);
-  }
-  if (travel && contextMapping.travel[travel]) {
-    tags.push(...contextMapping.travel[travel]);
-  }
+const EFFECT_LABELS = {
+  relax: '轻松一点', cry: '痛快哭一场', think: '动动脑子', excite: '提提精神',
+  scare: '被吓到', strength: '找回力量', surprise: '获得惊喜',
+};
 
-  return tags;
+const AVOID_TAGS = {
+  '太沉重': ['悲剧', '苦难', '绝望', '压抑', '死亡', '创伤'],
+  '太吓人': ['恐怖', '惊悚', '噩梦', '令人不适'],
+  '血腥暴力': ['暴力', '暴力美学', '血腥', '战争'],
+  '慢节奏': ['慢节奏', '极简美学', '沉默', '诗意'],
+  '恋爱主线': ['爱情', '浪漫', '婚姻', '暗恋'],
+  '开放结局': ['开放结局', '实验', '超现实'],
+};
+
+function movieHasTag(movie, wanted) {
+  const tags = (movie.tags || []).map((tag) => String(tag).toLowerCase());
+  const target = String(wanted).toLowerCase();
+  return tags.some((tag) => tag === target || tag.includes(target) || target.includes(tag));
 }
 
-export function findMatchingMovies(contextTags, topN = 20) {
-  const scored = movies.map((movie) => {
-    const movieTagsLower = movie.tags.map((t) => t.toLowerCase());
-    const contextTagsLower = contextTags.map((t) => t.toLowerCase());
-
-    let score = 0;
-    contextTagsLower.forEach((ct) => {
-      // 精确匹配：context tag 和 movie tag 完全一致 → 高权重
-      if (movieTagsLower.some((mt) => mt === ct)) {
-        score += 2;
-        return;
-      }
-      // 词级匹配：一方包含另一方（如 "温暖治愈" 包含 "治愈"）→ 低权重
-      if (movieTagsLower.some((mt) => mt.includes(ct) || ct.includes(mt))) {
-        score += 1;
-      }
-    });
-
-    // 归一化：除以可能的最大分值（每个 context tag 最多 2 分）
-    const maxScore = contextTags.length * 2;
-    const matchScore = Math.round((score / Math.max(maxScore, 1)) * 100);
-    return { ...movie, matchScore };
-  });
-
-  // 按匹配分降序，同分时按标签多样性升序（避免"万能匹配"电影长期霸榜）
-  scored.sort((a, b) => {
-    if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
-    return a.tags.length - b.tags.length;
-  });
-  return scored.slice(0, topN);
+function evaluateMovie(movie, selections) {
+  const genres = selections.genres || [];
+  const effectTags = EFFECT_TAGS[selections.effect] || [];
+  const blockedTags = (selections.avoidances || []).flatMap((item) => AVOID_TAGS[item] || []);
+  const blockedHits = blockedTags.filter((tag) => movieHasTag(movie, tag));
+  const genreHits = genres.filter((genre) => movieHasTag(movie, genre));
+  const effectHits = effectTags.filter((tag) => movieHasTag(movie, tag));
+  const quality = movie.voteAverage ? Math.min(10, movie.voteAverage) : 7.5;
+  const matchScore = Math.max(0, Math.min(99, Math.round(
+    38 + genreHits.length * 21 + effectHits.length * 7 + quality - blockedHits.length * 32
+  )));
+  return { ...movie, matchScore, genreHits, effectHits, blockedHits };
 }
 
-export function getDailyRecommendation(selections, excludeIds = []) {
-  const contextTags = getAllContextTags(selections);
-  const topMatches = findMatchingMovies(contextTags, 20)
-    .filter((m) => !excludeIds.includes(m.id));
-
-  if (topMatches.length === 0) {
-    return { movie: movies[0], text: '' };
-  }
-
-  // 确定性选择：用心情组合做 hash，从 top10 池中取一部
-  const pool = topMatches.slice(0, Math.min(10, topMatches.length));
-  const hashKey = `${selections.mood || ''}${selections.weather || ''}${selections.relationship || ''}${selections.travel || ''}${excludeIds.length}`;
-  const idx = deterministicHash(hashKey) % pool.length;
-  const picked = pool[idx];
-
-  const text = generateDailyText(selections, picked, contextTags);
-  return { movie: picked, text, alternates: topMatches.filter((m) => m.id !== picked.id) };
+export function rankDailyCandidates(selections, externalPool = [], excludeIds = []) {
+  const unique = new Map([...movies, ...externalPool].map((movie) => [String(movie.id), movie]));
+  return [...unique.values()]
+    .filter((movie) => !excludeIds.map(String).includes(String(movie.id)))
+    .map((movie) => evaluateMovie(movie, selections))
+    .filter((movie) => movie.blockedHits.length === 0)
+    .sort((a, b) => b.matchScore - a.matchScore || deterministicHash(a.title) - deterministicHash(b.title));
 }
 
-export function generateDailyText(selections, movie, contextTags) {
-  const { mood, weather, relationship, travel } = selections;
-  const templates = dailyTexts.templates;
-  const fallbacks = dailyTexts.fallbacks;
-
-  const tag = contextTags[0] || movie.tags[0] || '电影';
-  const director = movie.director || '导演';
-
-  const replace = (str) =>
-    str
-      .replace(/\{movieName\}/g, `《${movie.title}》`)
-      .replace(/\{director\}/g, director)
-      .replace(/\{tag\}/g, tag);
-
-  const combos = [
-    `${mood}+${weather}+${relationship}+${travel}`,
-    `${mood}+${weather}+${relationship}`,
-    `${mood}+${weather}+${travel}`,
-    `${mood}+${weather}`,
-    `${mood}+${relationship}`,
-    `${weather}+${relationship}`,
-    `${weather}+${travel}`,
-    `${relationship}+${travel}`,
-    mood,
-    weather,
-    relationship,
-    travel,
-  ];
-
-  for (const combo of combos) {
-    if (templates[combo]) {
-      return replace(templates[combo]);
-    }
+function explain(movie, selections, mode) {
+  const genreEvidence = movie.genreHits.length ? movie.genreHits.join('、') : (movie.tags || []).slice(0, 1).join('、');
+  const effectEvidence = movie.effectHits.slice(0, 2).join('、');
+  const timeLabel = selections.session === 'short' ? '控制在短片长范围' : selections.session === 'long' ? '允许长片充分展开' : '适合标准观影时段';
+  if (mode === 'window') {
+    return `保留你想“${EFFECT_LABELS[selections.effect]}”的核心需求，但用${genreEvidence || '不同类型'}换一个入口；${timeLabel}，并已避开你标记的内容边界。`;
   }
-
-  const fallbackKeys = ['mood', 'weather', 'relationship', 'travel'];
-  for (const key of fallbackKeys) {
-    const val = selections[key];
-    if (val && fallbacks[key] && fallbacks[key][val]) {
-      return replace(fallbacks[key][val]);
-    }
-  }
-
-  return replace(fallbacks.generic);
+  return `命中你选择的${genreEvidence || '故事方向'}${effectEvidence ? `，同时包含${effectEvidence}` : ''}；${timeLabel}，且没有触发你的避雷项。`;
 }
 
-export function generateInterpretation(selections, movie) {
-  const { mood, weather, relationship, travel } = selections;
-  const moodMap = {
-    '低落': '今天的心情像被罩了一层薄雾',
-    '焦虑': '今天的心跳有点快',
-    '平静': '今天的你像一潭安静的湖水',
-    '兴奋': '今天的能量满到溢出来',
-    '思念': '今天有些人在记忆里格外清晰',
-    '无聊': '今天的时间好像特别稠',
-    '想哭': '今天需要一个出口',
-    '释然': '今天的肩头终于轻了',
-  };
-  const weatherMap = {
-    '下雨': '窗外的雨还在下',
-    '晴天': '阳光把一切都照得清清楚楚',
-    '阴天': '灰色的天空好像一张空白的画布',
-    '大风': '风声呼啸',
-    '下雪': '雪落的声音让世界都安静了',
-    '闷热': '空气里有种南方的黏稠感',
-    '月夜': '月光洒进来',
-  };
-  const relationshipMap = {
-    '单身': '一个人也有一个人的完整',
-    '热恋': '心里装着一个人，看什么都带着光',
-    '暗恋': '有些话还没说出口',
-    '吵架了': '刚吵完架的心还在嗡嗡响',
-    '冷战期': '沉默比任何语言都响亮',
-    '刚分手': '结束之后，还在适应一个人的节奏',
-    '想念某人': '有个人在很远的地方',
-    '在暧昧': '在不确定里漂浮着',
-  };
-  const travelMap = {
-    '海边': '虽然身体不在海边，但心早飞过去了',
-    '山里': '山在远处，安静在近处',
-    '小镇': '想逃离城市的速度',
-    '大城市': '在霓虹中寻找自己的角落',
-    '公路上': '想一脚油门开到地平线',
-    '外太空': '想从地球的尺度看自己',
-    '咖啡馆': '想坐在窗边观察这个世界',
-    '家里窝着': '沙发和毯子就是今天的宇宙',
-  };
+export function getDailyRecommendations(selections, externalPool = [], excludeIds = []) {
+  const ranked = rankDailyCandidates(selections, externalPool, excludeIds);
+  if (!ranked.length) return null;
+  const mirror = ranked[0];
+  const selectedGenres = selections.genres || [];
+  const windowPool = ranked.filter((movie) =>
+    movie.id !== mirror.id
+    && movie.effectHits.length > 0
+    && selectedGenres.some((genre) => !movieHasTag(movie, genre))
+  );
+  const windowMovie = windowPool[0] || ranked.find((movie) => movie.id !== mirror.id) || mirror;
+  const backup = ranked.find((movie) => movie.id !== mirror.id && movie.id !== windowMovie.id) || mirror;
 
-  const moodLine = moodMap[mood] || '今天有今天的感受';
-  const weatherLine = weatherMap[weather] || '';
-  const relLine = relationshipMap[relationship] || '';
-  const travelLine = travelMap[travel] || '';
+  return {
+    mirror: { movie: mirror, mode: 'mirror', label: '镜子', subtitle: '最大化匹配', text: explain(mirror, selections, 'mirror') },
+    window: { movie: windowMovie, mode: 'window', label: '窗户', subtitle: '保留需求，跳出惯性', text: explain(windowMovie, selections, 'window') },
+    backup,
+    poolSize: ranked.length,
+  };
+}
 
-  const parts = [moodLine, weatherLine, relLine, travelLine].filter(Boolean);
-  const context = parts.slice(0, 3).join('，');
-
-  const interpretations = [
-    `${context}。这样的日子，${movie.director || '导演'}的《${movie.title}》好像一直在等你——${movie.tags.slice(0, 2).join('和')}的叙事刚好匹配你今天的频率。一部好的电影不会改变天气，但会改变你看天气的方式。`,
-    `${context}。而《${movie.title}》恰好是一部门槛很低的电影——不需要准备什么，带上一颗愿意被故事带走的心就够了。${movie.tags.slice(0, 2).join('与')}的碰撞，或许就是你今天需要的那种共鸣。`,
-    `${context}。今天推荐的《${movie.title}》不是随便选的——它和你此刻的状态有一种奇妙的呼应。电影里${movie.tags.slice(0, 2).join('和')}的主题，会让今晚变得不一样。`,
-    `${context}。把今晚交给《${movie.title}》吧。${movie.director || '导演'}的世界里，${movie.tags[0] || '电影'}不只是一种类型，更是一种情绪——恰好是你今天随身携带的那一种。`,
-  ];
-
-  return interpretations[deterministicHash(context + movie.title) % interpretations.length];
+export function generateInterpretation(selections, movie, mode = 'mirror') {
+  const genres = (selections.genres || []).join(' / ');
+  const effect = EFFECT_LABELS[selections.effect] || '获得合适的观影感受';
+  const evidence = (movie.genreHits?.length ? movie.genreHits : movie.tags || []).slice(0, 3).join('、');
+  const boundary = (selections.avoidances || []).length
+    ? `已排除：${selections.avoidances.join('、')}`
+    : '你没有设置内容避雷项';
+  const modeText = mode === 'window'
+    ? `它不是最像你勾选类型的那一部，而是在“${effect}”这一核心需求上成立，给今晚留一点意外。`
+    : `它在“${genres}”与“${effect}”两个条件上同时得分最高，是更稳妥的第一选择。`;
+  return `${modeText} 匹配依据：${evidence || '综合类型特征'}；${boundary}。推荐是一次可解释的筛选，不是对你情绪的诊断。`;
 }

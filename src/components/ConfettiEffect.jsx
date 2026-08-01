@@ -4,40 +4,25 @@ import confetti from 'canvas-confetti';
 export default function ConfettiEffect({ trigger }) {
   useEffect(() => {
     if (!trigger) return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
 
-    const duration = 3000;
-    const end = Date.now() + duration;
     const colors = ['#c9a86c', '#8B6F47', '#D4AF37', '#F5CC7F'];
-
-    confetti({
-      particleCount: 80,
-      spread: 70,
-      origin: { y: 0.6 },
-      colors,
-    });
-
-    const interval = setInterval(() => {
-      if (Date.now() > end) {
-        clearInterval(interval);
-        return;
-      }
+    const timer = window.setTimeout(() => {
       confetti({
-        particleCount: 25,
-        angle: 60,
-        spread: 55,
-        origin: { x: 0 },
+        particleCount: 48,
+        spread: 64,
+        startVelocity: 25,
+        gravity: 0.9,
+        ticks: 90,
+        scalar: 0.72,
+        origin: { y: 0.72 },
         colors,
+        zIndex: 0,
+        disableForReducedMotion: true,
       });
-      confetti({
-        particleCount: 25,
-        angle: 120,
-        spread: 55,
-        origin: { x: 1 },
-        colors,
-      });
-    }, 400);
+    }, 120);
 
-    return () => clearInterval(interval);
+    return () => window.clearTimeout(timer);
   }, [trigger]);
 
   return null;

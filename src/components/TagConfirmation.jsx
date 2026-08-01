@@ -99,7 +99,15 @@ export default function TagConfirmation({ selectedMovieIds, externalMovies, enri
           onKeyDown={handleKeyDown}
           placeholder="添加你自己的标签，按回车确认..."
         />
-        <button className="btn-primary" style={{ padding: '10px 20px', fontSize: 13 }} onClick={addTag}>添加</button>
+        <button
+          className="btn-primary"
+          style={{ padding: '10px 20px', fontSize: 13 }}
+          onClick={addTag}
+          disabled={!input.trim() || tags.includes(input.trim())}
+          aria-disabled={!input.trim() || tags.includes(input.trim())}
+        >
+          添加
+        </button>
       </div>
 
       <div style={{ textAlign: 'center', marginTop: 32 }}>

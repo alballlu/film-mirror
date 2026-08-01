@@ -1,120 +1,136 @@
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
-const MOODS = [
-  { key: '低落', emoji: '😔', label: '低落' },
-  { key: '焦虑', emoji: '😰', label: '焦虑' },
-  { key: '平静', emoji: '🧘', label: '平静' },
-  { key: '兴奋', emoji: '🤩', label: '兴奋' },
-  { key: '思念', emoji: '🥺', label: '思念' },
-  { key: '无聊', emoji: '😑', label: '无聊' },
-  { key: '想哭', emoji: '😭', label: '想哭' },
-  { key: '释然', emoji: '😌', label: '释然' },
+const EFFECTS = [
+  { key: 'relax', emoji: '🌿', label: '轻松一点' },
+  { key: 'cry', emoji: '💧', label: '痛快哭一场' },
+  { key: 'think', emoji: '🧩', label: '动动脑子' },
+  { key: 'excite', emoji: '⚡', label: '提提精神' },
+  { key: 'scare', emoji: '🕯️', label: '想被吓到' },
+  { key: 'strength', emoji: '🔥', label: '找回力量' },
+  { key: 'surprise', emoji: '🎲', label: '给我惊喜' },
 ];
 
-const WEATHERS = [
-  { key: '下雨', emoji: '🌧️', label: '下雨' },
-  { key: '晴天', emoji: '☀️', label: '晴天' },
-  { key: '阴天', emoji: '☁️', label: '阴天' },
-  { key: '大风', emoji: '💨', label: '大风' },
-  { key: '下雪', emoji: '❄️', label: '下雪' },
-  { key: '闷热', emoji: '🫠', label: '闷热' },
-  { key: '月夜', emoji: '🌙', label: '月夜' },
+const GENRES = ['悬疑', '科幻', '喜剧', '爱情', '恐怖', '动作', '动画', '现实', '犯罪', '惊悚'];
+
+const SESSIONS = [
+  { key: 'short', emoji: '⏱️', label: '100 分钟内', hint: '今晚时间有限' },
+  { key: 'standard', emoji: '🍿', label: '标准片长', hint: '两小时左右刚好' },
+  { key: 'long', emoji: '🎞️', label: '长片也可以', hint: '愿意完整沉进去' },
 ];
 
-const RELATIONSHIPS = [
-  { key: '单身', emoji: '🌿', label: '单身' },
-  { key: '热恋', emoji: '💕', label: '热恋' },
-  { key: '暗恋', emoji: '🫣', label: '暗恋' },
-  { key: '吵架了', emoji: '💔', label: '吵架了' },
-  { key: '冷战期', emoji: '🧊', label: '冷战期' },
-  { key: '刚分手', emoji: '🩹', label: '刚分手' },
-  { key: '想念某人', emoji: '🕯️', label: '想念某人' },
-  { key: '在暧昧', emoji: '🎭', label: '在暧昧' },
-];
-
-const TRAVELS = [
-  { key: '海边', emoji: '🏖️', label: '海边' },
-  { key: '山里', emoji: '🏔️', label: '山里' },
-  { key: '小镇', emoji: '🏘️', label: '小镇' },
-  { key: '大城市', emoji: '🏙️', label: '大城市' },
-  { key: '公路上', emoji: '🛣️', label: '公路上' },
-  { key: '外太空', emoji: '🚀', label: '外太空' },
-  { key: '咖啡馆', emoji: '☕', label: '咖啡馆' },
-  { key: '家里窝着', emoji: '🛋️', label: '家里窝着' },
-];
+const AVOIDANCES = ['太沉重', '太吓人', '血腥暴力', '慢节奏', '恋爱主线', '开放结局'];
 
 export default function DailyContext({ onNext, onBack }) {
-  const [mood, setMood] = useState(null);
-  const [weather, setWeather] = useState(null);
-  const [relationship, setRelationship] = useState(null);
-  const [travel, setTravel] = useState(null);
+  const [effect, setEffect] = useState(null);
+  const [genres, setGenres] = useState([]);
+  const [session, setSession] = useState(null);
+  const [avoidances, setAvoidances] = useState([]);
+  const groupRefs = useRef([]);
 
-  const allSelected = mood && weather && relationship && travel;
+  const missing = useMemo(() => [
+    !effect ? '今晚想获得的感受' : null,
+    genres.length === 0 ? '想看的故事类型' : null,
+    !session ? '可投入的时间' : null,
+  ].filter(Boolean), [effect, genres, session]);
 
-  const handleSubmit = () => {
-    if (!allSelected) return;
-    onNext({ mood, weather, relationship, travel });
+  const toggleGenre = (genre) => {
+    setGenres((current) => {
+      if (current.includes(genre)) return current.filter((item) => item !== genre);
+      return current.length < 2 ? [...current, genre] : current;
+    });
   };
 
-  const renderGroup = (title, items, selected, setter) => (
-    <div className="context-group animate-fade-up">
-      <h3>{title}</h3>
-      <div className="context-options">
+  const toggleAvoidance = (item) => {
+    setAvoidances((current) => current.includes(item)
+      ? current.filter((value) => value !== item)
+      : [...current, item]);
+  };
+
+  const handleSubmit = () => {
+    if (missing.length) {
+      const index = !effect ? 0 : genres.length === 0 ? 1 : 2;
+      groupRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      groupRefs.current[index]?.focus({ preventScroll: true });
+      return;
+    }
+    onNext({ effect, genres, session, avoidances });
+  };
+
+  const renderSingleGroup = (index, title, hint, items, selected, setter) => (
+    <section className="context-group animate-fade-up" ref={(node) => { groupRefs.current[index] = node; }} tabIndex={-1}>
+      <div className="context-heading"><h3>{title}</h3>{hint && <span>{hint}</span>}</div>
+      <div className="context-options" role="radiogroup" aria-label={title}>
         {items.map((item) => (
-          <div
+          <button
+            type="button"
             key={item.key}
             className={`context-option ${selected === item.key ? 'selected' : ''}`}
             onClick={() => setter(item.key)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                setter(item.key);
-              }
-            }}
             role="radio"
             aria-checked={selected === item.key}
-            tabIndex={0}
           >
             <span className="emoji">{item.emoji}</span>
             <span className="label">{item.label}</span>
-          </div>
+            {item.hint && <span className="option-hint">{item.hint}</span>}
+          </button>
         ))}
       </div>
-    </div>
+    </section>
   );
 
   return (
     <div className="page daily-context-page animate-fade-in">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+      <div className="daily-header-row">
         <button className="btn-ghost" onClick={onBack}>← 首页</button>
-        <h2 className="section-title" style={{ marginBottom: 0 }}>
-          <span className="accent-line" />
-          今天，你是什么状态？
-        </h2>
+        <h2 className="section-title"><span className="accent-line" />今天想看什么？</h2>
       </div>
 
-      <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: 24 }} className="animate-fade-up">
-        回答 4 个简单的问题，为你安排一部属于今天的电影
+      <p className="daily-intro animate-fade-up">
+        不猜天气，也不问感情状态。用 3 个必答选择和 1 个可选边界，缩小到真正适合今晚的电影。
       </p>
 
-      {renderGroup('1. 今天心情怎么样？', MOODS, mood, setMood)}
-      {renderGroup('2. 外面什么天气？', WEATHERS, weather, setWeather)}
-      {renderGroup('3. 你现在的感情状态？', RELATIONSHIPS, relationship, setRelationship)}
-      {renderGroup('4. 此刻最想去哪？', TRAVELS, travel, setTravel)}
+      {renderSingleGroup(0, '1. 今晚想被电影怎样对待？', '选一个最需要的结果', EFFECTS, effect, setEffect)}
 
-      <div className="daily-action animate-fade-up" style={{ animationDelay: '0.4s' }}>
-        <button
-          className="btn btn-primary daily-card-btn"
-          disabled={!allSelected}
-          onClick={handleSubmit}
-        >
-          🎴 看看今天该看什么
+      <section className="context-group animate-fade-up" ref={(node) => { groupRefs.current[1] = node; }} tabIndex={-1}>
+        <div className="context-heading"><h3>2. 想进入哪类故事？</h3><span>最多选 2 个 · 已选 {genres.length}/2</span></div>
+        <div className="context-options compact" role="group" aria-label="想看的故事类型">
+          {GENRES.map((genre) => (
+            <button
+              type="button"
+              key={genre}
+              className={`context-option text-only ${genres.includes(genre) ? 'selected' : ''}`}
+              onClick={() => toggleGenre(genre)}
+              aria-pressed={genres.includes(genre)}
+              disabled={genres.length >= 2 && !genres.includes(genre)}
+            >{genre}</button>
+          ))}
+        </div>
+      </section>
+
+      {renderSingleGroup(2, '3. 今晚能投入多少？', '用时间约束减少“看起来不错但点不开”', SESSIONS, session, setSession)}
+
+      <section className="context-group animate-fade-up">
+        <div className="context-heading"><h3>4. 有什么不想碰？</h3><span>可跳过 · 可多选</span></div>
+        <div className="context-options compact" role="group" aria-label="不想看的内容">
+          {AVOIDANCES.map((item) => (
+            <button
+              type="button"
+              key={item}
+              className={`context-option text-only ${avoidances.includes(item) ? 'selected avoid' : ''}`}
+              onClick={() => toggleAvoidance(item)}
+              aria-pressed={avoidances.includes(item)}
+            >{avoidances.includes(item) ? '× ' : ''}{item}</button>
+          ))}
+        </div>
+      </section>
+
+      <div className="daily-action animate-fade-up">
+        <button className="btn btn-primary daily-card-btn" onClick={handleSubmit}>
+          生成“镜子 / 窗户”片单 →
         </button>
-        {!allSelected && (
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: 8 }}>
-            请完成以上 4 个选择
-          </p>
-        )}
+        <p className={`daily-progress-copy ${missing.length ? '' : 'ready'}`} role="status">
+          {missing.length ? `还差：${missing.join('、')}` : '信息够了，可以开始推荐'}
+        </p>
       </div>
     </div>
   );

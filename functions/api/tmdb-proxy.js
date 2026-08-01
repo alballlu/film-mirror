@@ -2,12 +2,14 @@ const TMDB_BASE = 'https://api.themoviedb.org/3';
 
 const ENDPOINTS = {
   search: '/search/movie',
+  discover: '/discover/movie',
   keywords: '/movie/[id]/keywords',
   recommendations: '/movie/[id]/recommendations',
 };
 
 const CACHE_TTL = {
   search: 6 * 60 * 60,
+  discover: 6 * 60 * 60,
   keywords: 24 * 60 * 60,
   recommendations: 6 * 60 * 60,
 };
@@ -30,7 +32,7 @@ export async function onRequest(context) {
   if (!action || !ENDPOINTS[action]) {
     return json({ error: 'Invalid action' }, 400);
   }
-  if (action !== 'search' && !/^\d+$/.test(id || '')) {
+  if (!['search', 'discover'].includes(action) && !/^\d+$/.test(id || '')) {
     return json({ error: 'Invalid movie id' }, 400);
   }
 
