@@ -44,8 +44,8 @@ export default function Recommendation({ selectedMovieIds, externalMovies, tags,
   }, [hasExternal]);
 
   const recs = useMemo(
-    () => getRecommendations(selectedMovieIds, tags.map((t) => ({ tag: t })), scores),
-    [selectedMovieIds, tags, scores]
+    () => getRecommendations(selectedMovieIds, tags, scores, 5, externalMovies),
+    [selectedMovieIds, tags, scores, externalMovies]
   );
 
   useEffect(() => {
@@ -167,6 +167,9 @@ export default function Recommendation({ selectedMovieIds, externalMovies, tags,
                 </span>
               </h4>
               <p className="match">匹配度 {movie.matchScore}%</p>
+              {movie.matchReasons?.length > 0 && (
+                <p className="match-reasons">因为你反复选择了：{movie.matchReasons.join(' · ')}</p>
+              )}
               <p className="rec-desc">{movie.description}</p>
             </div>
           </div>

@@ -1,14 +1,10 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
-import {
-  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
-  Radar, ResponsiveContainer, Tooltip,
-} from 'recharts';
+import { lazy, Suspense, useState, useMemo, useEffect } from 'react';
 import {
   calculatePersonalityScore, getPersonalitySummary,
-  getDimensionText, getPersonalityName, DIMENSIONS,
+  getDimensionText, getPersonalityName, buildPreferenceProfile, DIMENSIONS,
 } from '../utils/personalityEngine';
-import ShareCard from './ShareCard';
-import ConfettiEffect from './ConfettiEffect';
+
+const ShareCard = lazy(() => import('./ShareCard'));
 
 const DIMENSION_LABELS = {
   '逻辑分析': '逻辑分析',
@@ -19,21 +15,69 @@ const DIMENSION_LABELS = {
   '内省深度': '内省深度',
 };
 
-export default function PersonalityProfile({ tags, selectedMovieIds, onNext, onBack }) {
+function radarPoint(index, value, radius = 104, centerX = 180, centerY = 148) {
+  const angle = (-90 + index * 60) * Math.PI / 180;
+  const scaledRadius = radius * value;
+  return [centerX + Math.cos(angle) * scaledRadius, centerY + Math.sin(angle) * scaledRadius];
+}
+
+function polygonPoints(values, radius) {
+  return values.map((value, index) => radarPoint(index, value, radius)).map((point) => point.join(',')).join(' ');
+}
+
+function PersonalityRadar({ data, animate }) {
+  const center = '180,148';
+  const values = data.map((item) => item.score / 100);
+
+  return (
+    <svg className="personality-radar" viewBox="0 0 360 320" role="img" aria-label="六维电影性格雷达图">
+      {[0.25, 0.5, 0.75, 1].map((level) => (
+        <polygon key={level} points={polygonPoints(data.map(() => 1), 104 * level)} className="radar-grid" />
+      ))}
+      {data.map((item, index) => {
+        const [axisX, axisY] = radarPoint(index, 1);
+        const [labelX, labelY] = radarPoint(index, 1, 132);
+        return (
+          <g key={item.dimension}>
+            <line x1="180" y1="148" x2={axisX} y2={axisY} className="radar-axis" />
+            <text x={labelX} y={labelY - 3} className="radar-label" textAnchor="middle">{item.dimension}</text>
+            <text x={labelX} y={labelY + 13} className="radar-score" textAnchor="middle">{item.score}</text>
+          </g>
+        );
+      })}
+      <polygon
+        points={animate ? polygonPoints(values, 104) : data.map(() => center).join(' ')}
+        className="radar-shape"
+      />
+      {animate && values.map((value, index) => {
+        const [x, y] = radarPoint(index, value);
+        return <circle key={data[index].dimension} cx={x} cy={y} r="3.5" className="radar-dot" />;
+      })}
+    </svg>
+  );
+}
+
+export default function PersonalityProfile({ tags, selectedMovieIds, externalMovies, onNext, onBack }) {
   const [expanded, setExpanded] = useState(null);
   const [animateChart, setAnimateChart] = useState(false);
   const [shareText, setShareText] = useState('');
   const [showCard, setShowCard] = useState(false);
-  const [confettiTrigger, setConfettiTrigger] = useState(false);
   const [liked, setLiked] = useState(() => localStorage.getItem('filmmirror_liked') === 'true');
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedback, setFeedback] = useState(() => localStorage.getItem('filmmirror_feedback') || '');
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [feedbackSending, setFeedbackSending] = useState(false);
 
-  const scores = useMemo(() => calculatePersonalityScore(tags), [tags]);
+  const preferenceTags = useMemo(
+    () => buildPreferenceProfile(selectedMovieIds, tags, externalMovies),
+    [selectedMovieIds, tags, externalMovies]
+  );
+  const scores = useMemo(
+    () => calculatePersonalityScore(tags, selectedMovieIds, externalMovies),
+    [tags, selectedMovieIds, externalMovies]
+  );
   const personalityName = useMemo(() => getPersonalityName(scores), [scores]);
-  const summary = useMemo(() => getPersonalitySummary(scores, tags.map((t) => ({ tag: t }))), [scores, tags]);
+  const summary = useMemo(() => getPersonalitySummary(scores, preferenceTags), [scores, preferenceTags]);
   const chartData = useMemo(
     () => DIMENSIONS.map((d) => ({ dimension: DIMENSION_LABELS[d], score: scores[d], full: 100 })),
     [scores]
@@ -46,7 +90,6 @@ export default function PersonalityProfile({ tags, selectedMovieIds, onNext, onB
 
   useEffect(() => {
     if (window.umami) window.umami.track('flow_a_profile_view');
-    setConfettiTrigger(true);
   }, []);
 
   const sortedDims = useMemo(
@@ -99,7 +142,6 @@ export default function PersonalityProfile({ tags, selectedMovieIds, onNext, onB
 
   return (
     <div className="page personality-page animate-fade-in">
-      <ConfettiEffect trigger={confettiTrigger} />
       <div className="step-progress animate-fade-up" aria-label="深度体验进度：第 3 步，共 4 步">
         <div className="progress-step done">✓</div>
         <div className="progress-line done" />
@@ -131,41 +173,7 @@ export default function PersonalityProfile({ tags, selectedMovieIds, onNext, onB
       {/* Radar Chart + Summary */}
       <div className="personality-section animate-fade-up" style={{ animationDelay: '0.1s' }}>
         <div className="radar-container">
-          <ResponsiveContainer width="100%" height={360}>
-            <RadarChart data={chartData} cx="50%" cy="50%" outerRadius="75%">
-              <PolarGrid stroke="var(--border-default)" />
-              <PolarAngleAxis
-                dataKey="dimension"
-                tick={{ fill: 'var(--text-secondary)', fontSize: 13, fontFamily: 'var(--font-sans)' }}
-              />
-              <PolarRadiusAxis
-                angle={30}
-                domain={[0, 100]}
-                tick={{ fill: 'var(--text-muted)', fontSize: 10 }}
-                axisLine={false}
-                tickCount={5}
-              />
-              <Tooltip
-                contentStyle={{
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--border-default)',
-                  borderRadius: 8,
-                  color: 'var(--text-primary)',
-                }}
-                formatter={(value) => [`${value}分`, '']}
-              />
-              <Radar
-                name="性格维度"
-                dataKey="score"
-                stroke="var(--gold)"
-                strokeWidth={2}
-                fill="rgba(201, 168, 108, 0.15)"
-                fillOpacity={0.6}
-                animationDuration={animateChart ? 1500 : 0}
-                animationBegin={0}
-              />
-            </RadarChart>
-          </ResponsiveContainer>
+          <PersonalityRadar data={chartData} animate={animateChart} />
         </div>
 
         <div className="personality-summary">
@@ -173,6 +181,12 @@ export default function PersonalityProfile({ tags, selectedMovieIds, onNext, onB
             ✦ 性格解读
           </p>
           {summary}
+          <div className="profile-evidence" aria-label="本次画像的主要依据">
+            <span>主要依据</span>
+            {preferenceTags.slice(0, 5).map(({ tag, count }) => (
+              <strong key={tag}>{tag}{count > 1 ? ` ×${count}` : ''}</strong>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -232,7 +246,14 @@ export default function PersonalityProfile({ tags, selectedMovieIds, onNext, onB
           overflow: 'auto',
         }}>
           <div style={{ maxHeight: '90vh', overflow: 'auto', padding: 20 }}>
-            <ShareCard scores={scores} selectedMovieIds={selectedMovieIds} />
+            <Suspense fallback={<p style={{ color: 'var(--text-secondary)' }}>正在生成分享卡…</p>}>
+              <ShareCard
+                scores={scores}
+                selectedMovieIds={selectedMovieIds}
+                tags={tags}
+                externalMovies={externalMovies}
+              />
+            </Suspense>
             <button onClick={() => setShowCard(false)} style={{ marginTop: 12, padding: '8px 24px', background: 'transparent', color: '#F5F1EA', border: '1px solid #F5F1EA', borderRadius: 6, cursor: 'pointer', fontFamily: "'Noto Sans SC', sans-serif" }}>
               关闭
             </button>

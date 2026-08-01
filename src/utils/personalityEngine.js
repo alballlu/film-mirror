@@ -42,32 +42,70 @@ export function extractTags(selectedMovieIds, externalMovies = {}) {
   return sorted;
 }
 
-export function calculatePersonalityScore(tags) {
+function normalizeActiveTags(tags = []) {
+  return tags.map((item) => (typeof item === 'string' ? item : item?.tag)).filter(Boolean);
+}
+
+function findSelectedMovie(id, externalMovies = {}) {
+  return movies.find((movie) => movie.id === id) || externalMovies[id] || externalMovies[String(id)] || null;
+}
+
+/**
+ * Build one shared preference profile for radar, naming, recommendations and share cards.
+ * Repeated tags matter more than one-off tags, while user-removed tags are excluded.
+ */
+export function buildPreferenceProfile(selectedMovieIds = [], activeTags = [], externalMovies = {}) {
+  const active = normalizeActiveTags(activeTags);
+  const activeSet = new Set(active);
+  const counts = {};
+
+  selectedMovieIds.forEach((id) => {
+    const movie = findSelectedMovie(id, externalMovies);
+    movie?.tags?.forEach((tag) => {
+      if (activeSet.size === 0 || activeSet.has(tag)) counts[tag] = (counts[tag] || 0) + 1;
+    });
+  });
+
+  // User-added tags have explicit intent even when they are absent from movie metadata.
+  active.forEach((tag) => {
+    if (!counts[tag]) counts[tag] = 1;
+  });
+
+  return Object.entries(counts)
+    .map(([tag, count]) => ({
+      tag,
+      count,
+      // Recurrence boost: core taste signals beat dozens of incidental one-off tags.
+      weight: Math.pow(count, 1.45),
+      mapped: Boolean(tagMapping[tag]),
+    }))
+    .sort((a, b) => b.weight - a.weight || b.count - a.count || a.tag.localeCompare(b.tag, 'zh-CN'));
+}
+
+export function calculatePersonalityScore(tags, selectedMovieIds = [], externalMovies = {}) {
   const scores = {};
   DIMENSIONS.forEach((d) => {
     scores[d] = 0;
   });
 
-  let totalContrib = 0;
-
-  tags.forEach((tag) => {
+  const profile = buildPreferenceProfile(selectedMovieIds, tags, externalMovies);
+  profile.forEach(({ tag, weight: tagWeight }) => {
     const mapping = tagMapping[tag];
     if (!mapping) return;
-    totalContrib++;
     Object.entries(mapping).forEach(([dim, weight]) => {
       if (scores[dim] !== undefined) {
-        scores[dim] += weight;
+        scores[dim] += weight * tagWeight;
       }
     });
   });
 
-  if (totalContrib === 0) {
+  const topRaw = Math.max(...Object.values(scores));
+  if (topRaw === 0) {
     DIMENSIONS.forEach((d) => (scores[d] = 50));
   } else {
     DIMENSIONS.forEach((d) => {
-      const raw = scores[d];
-      const normalized = Math.round((raw / Math.max(totalContrib * 0.6, 1)) * 100);
-      scores[d] = Math.min(100, Math.max(10, normalized + 15));
+      const relativeStrength = scores[d] / topRaw;
+      scores[d] = Math.min(95, Math.max(12, Math.round(18 + 77 * Math.pow(relativeStrength, 1.2))));
     });
   }
 
@@ -98,18 +136,68 @@ export function getDimensionText(dimension, score) {
   return dimTexts.low;
 }
 
-export function getRecommendations(selectedMovieIds, tags, scores, count = 5) {
+function dimensionVector(movieTags) {
+  const vector = {};
+  DIMENSIONS.forEach((dimension) => { vector[dimension] = 0; });
+  movieTags.forEach((tag) => {
+    const mapping = tagMapping[tag] || {};
+    Object.entries(mapping).forEach(([dimension, weight]) => {
+      if (vector[dimension] !== undefined) vector[dimension] += weight;
+    });
+  });
+  return vector;
+}
+
+function cosineSimilarity(left, right) {
+  let dot = 0;
+  let leftNorm = 0;
+  let rightNorm = 0;
+  DIMENSIONS.forEach((dimension) => {
+    const a = left[dimension] || 0;
+    const b = right[dimension] || 0;
+    dot += a * b;
+    leftNorm += a * a;
+    rightNorm += b * b;
+  });
+  if (!leftNorm || !rightNorm) return 0;
+  return dot / (Math.sqrt(leftNorm) * Math.sqrt(rightNorm));
+}
+
+export function getRecommendations(selectedMovieIds, tags, scores, count = 5, externalMovies = {}) {
   const selectedSet = new Set(selectedMovieIds);
   const candidates = movies.filter((m) => !selectedSet.has(m.id));
-
-  const tagSet = new Set(tags.map((t) => t.tag));
-  const scored = candidates.map((movie) => {
-    const matchCount = movie.tags.filter((t) => tagSet.has(t)).length;
-    const matchScore = matchCount / Math.max(movie.tags.length, 1);
-    return { ...movie, matchScore: Math.min(99, Math.round(matchScore * 100)) };
+  const profile = buildPreferenceProfile(selectedMovieIds, tags, externalMovies);
+  const tagWeights = new Map(profile.map((item) => [item.tag, item.weight]));
+  const anchorTags = new Set(profile.slice(0, 8).map((item) => item.tag));
+  const rawUserDimensions = {};
+  DIMENSIONS.forEach((dimension) => {
+    rawUserDimensions[dimension] = Math.max(0, (scores?.[dimension] || 0) - 12);
   });
 
-  scored.sort((a, b) => b.matchScore - a.matchScore);
+  const prelim = candidates.map((movie) => {
+    const matchedTags = movie.tags
+      .filter((tag) => tagWeights.has(tag))
+      .sort((a, b) => tagWeights.get(b) - tagWeights.get(a));
+    const tagSignal = matchedTags.reduce((sum, tag) => sum + tagWeights.get(tag), 0);
+    const anchorMatches = matchedTags.filter((tag) => anchorTags.has(tag)).length;
+    const dimensionSimilarity = cosineSimilarity(rawUserDimensions, dimensionVector(movie.tags));
+    return { ...movie, matchedTags, tagSignal, anchorMatches, dimensionSimilarity };
+  });
+
+  const maxTagSignal = Math.max(...prelim.map((movie) => movie.tagSignal), 1);
+  const scored = prelim.map((movie) => {
+    const tagFit = movie.tagSignal / maxTagSignal;
+    const anchorFit = Math.min(1, movie.anchorMatches / 2);
+    const finalScore = tagFit * 0.68 + movie.dimensionSimilarity * 0.22 + anchorFit * 0.1;
+    return {
+      ...movie,
+      finalScore,
+      matchScore: Math.min(96, Math.max(45, Math.round(45 + finalScore * 51))),
+      matchReasons: movie.matchedTags.slice(0, 3),
+    };
+  });
+
+  scored.sort((a, b) => b.finalScore - a.finalScore || b.tagSignal - a.tagSignal || a.id - b.id);
   return scored.slice(0, count);
 }
 
@@ -203,64 +291,8 @@ function movieDimensionStrength(movieTags, dimension) {
   return dimContrib / total; // 该维度占电影 tag 权重的比例
 }
 
-export function pickSharePosters(userScores, excludeIds, count = 5) {
-  const seed = deterministicHash(Object.values(userScores).join(''));
-
-  // 识别用户最高分的 2 个维度
-  const sortedDims = Object.entries(userScores).sort((a, b) => b[1] - a[1]);
-  const topDim = sortedDims[0][0];
-  const secondDim = sortedDims[1][0];
-
-  const excludeSet = new Set(excludeIds);
-
-  // 对所有候选电影计算综合评分：
-  // resonance 基础分 + 维度对齐加分（电影在用户 top-1/2 维度上的强度 × 额外权重）
-  const candidates = movies
-    .filter((m) => !excludeSet.has(m.id))
-    .map((m) => {
-      const resonance = resonanceScore(m.tags, userScores);
-      const primaryStrength = movieDimensionStrength(m.tags, topDim);
-      const secondaryStrength = movieDimensionStrength(m.tags, secondDim);
-      // 维对齐加分：top 维度强度 × 35 + second 维度强度 × 20
-      const alignmentBonus = primaryStrength * 35 + secondaryStrength * 20;
-      const finalScore = resonance + alignmentBonus;
-      return { ...m, resonance, finalScore, primaryStrength, secondaryStrength };
-    })
-    .sort((a, b) => b.finalScore - a.finalScore);
-
-  // 两步选片：
-  // Step 1: 从 top 维度最强的前 10 部里确定性取 3 张
-  // Step 2: 从综合分前 20 部里确定性取 2 张（保证多样性）
-
-  const topDimPool = candidates
-    .filter((m) => m.primaryStrength >= 0.15) // 至少 15% 的 tag 权重贡献到 top 维度
-    .slice(0, 10);
-
-  const generalPool = candidates.slice(0, 20);
-
-  const result = [];
-  const selectedIds = new Set();
-
-  // Step 1: 从 topDimPool 取 3 张
-  const topPoolCopy = [...topDimPool];
-  for (let i = 0; i < 3 && topPoolCopy.length > 0; i++) {
-    const idx = (seed + i * 7) % topPoolCopy.length;
-    result.push(topPoolCopy[idx]);
-    selectedIds.add(topPoolCopy[idx].id);
-    topPoolCopy.splice(idx, 1);
-  }
-
-  // Step 2: 从 generalPool 补足剩余（排除已选）
-  const generalRemain = generalPool.filter((m) => !selectedIds.has(m.id));
-  const remaining = count - result.length;
-  for (let i = 0; i < remaining && generalRemain.length > 0; i++) {
-    const idx = (seed + (3 + i) * 11) % generalRemain.length;
-    result.push(generalRemain[idx]);
-    selectedIds.add(generalRemain[idx].id);
-    generalRemain.splice(idx, 1);
-  }
-
-  return result;
+export function pickSharePosters(userScores, excludeIds, count = 5, activeTags = [], externalMovies = {}) {
+  return getRecommendations(excludeIds, activeTags, userScores, count, externalMovies);
 }
 
 export { DIMENSIONS };
