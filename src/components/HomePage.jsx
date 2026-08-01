@@ -1,3 +1,5 @@
+import { trackFlowStart } from '../utils/analytics';
+
 export default function HomePage({ onDeepClick, onDailyClick }) {
   const handleKeyboardActivate = (event, action) => {
     if (event.key === 'Enter' || event.key === ' ') {
@@ -7,12 +9,12 @@ export default function HomePage({ onDeepClick, onDailyClick }) {
   };
 
   const startDeepFlow = () => {
-    if (window.umami) window.umami.track('flow_a_start');
+    trackFlowStart('a');
     onDeepClick();
   };
 
   const startDailyFlow = () => {
-    if (window.umami) window.umami.track('flow_b_start');
+    trackFlowStart('b');
     onDailyClick();
   };
 

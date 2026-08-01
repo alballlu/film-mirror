@@ -3,6 +3,7 @@ import {
   calculatePersonalityScore, getPersonalityNarrative,
   getDimensionText, buildPreferenceProfile, DIMENSIONS,
 } from '../utils/personalityEngine';
+import { trackEvent, trackEventOnce } from '../utils/analytics';
 
 const ShareCard = lazy(() => import('./ShareCard'));
 
@@ -92,7 +93,12 @@ export default function PersonalityProfile({ tags, selectedMovieIds, externalMov
   }, []);
 
   useEffect(() => {
-    if (window.umami) window.umami.track('flow_a_profile_view');
+    trackEventOnce('result_view', {
+      flow: 'a',
+      result_type: 'personality_profile',
+      selected_movie_count: selectedMovieIds.length,
+      tag_count: tags.length,
+    }, 'result_view:a');
   }, []);
 
   const sortedDims = useMemo(
@@ -111,7 +117,7 @@ export default function PersonalityProfile({ tags, selectedMovieIds, externalMov
     navigator.clipboard.writeText(content)
       .then(() => setToast('分享文案已复制'))
       .catch(() => setToast('复制失败，请长按下方文案复制'));
-    if (window.umami) window.umami.track('profile_share_copy');
+    trackEvent('share', { flow: 'a', share_type: 'copy_text', result_type: 'personality_profile' });
   };
 
   useEffect(() => {

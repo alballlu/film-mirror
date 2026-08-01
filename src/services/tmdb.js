@@ -1,4 +1,5 @@
 import tmdbGenreMap from '../data/tmdbGenreMap.json';
+import { trackApiError } from '../utils/analytics';
 
 // Cloudflare Pages 是唯一生产环境。浏览器只访问同源 Functions，
 // TMDB Key 仅保存在 Cloudflare 的运行时变量中，不进入前端构建产物。
@@ -126,7 +127,10 @@ async function searchMovie(title, year) {
     year: String(year),
     language: 'zh-CN',
   });
-  if (!res.ok) throw new Error(`TMDB search failed: ${res.status}`);
+  if (!res.ok) {
+    trackApiError('tmdb_search', res.status, true);
+    throw new Error(`TMDB search failed: ${res.status}`);
+  }
   const data = await res.json();
   return data.results?.[0]?.poster_path || null;
 }
@@ -285,14 +289,18 @@ export async function fetchTMDBKeywords(tmdbId) {
       action: 'keywords',
       id: tmdbId,
     });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      trackApiError('tmdb_keywords', res.status, true);
+      return [];
+    }
     const data = await res.json();
     const names = (data.keywords || []).map((k) => k.name);
     try {
       sessionStorage.setItem(cacheKey, JSON.stringify({ data: names, ts: Date.now() }));
     } catch {}
     return names;
-  } catch {
+  } catch (error) {
+    trackApiError('tmdb_keywords', error.name || 'network_error', true);
     return [];
   }
 }
@@ -362,14 +370,17 @@ export async function searchTMDBMulti(query) {
     const res = await rateLimitedSearch(queryParams);
 
     if (res.status === 429) {
+      trackApiError('tmdb_search', 429, true);
       console.warn('[FilmMirror] TMDB 请求过于频繁，请稍后再试');
       return [];
     }
     if (res.status === 401) {
+      trackApiError('tmdb_search', 401, true);
       console.error('[FilmMirror] TMDB API Key 无效或已过期');
       return [];
     }
     if (!res.ok) {
+      trackApiError('tmdb_search', res.status, true);
       console.warn(`[FilmMirror] TMDB 搜索失败 (${res.status})`);
       return [];
     }
@@ -390,6 +401,7 @@ export async function searchTMDBMulti(query) {
     setSearchCache(query, results);
     return results;
   } catch (e) {
+    trackApiError('tmdb_search', e.name || 'network_error', true);
     console.warn('[FilmMirror] TMDB 网络请求失败，请检查网络连接', e.message);
     return [];
   }
@@ -431,7 +443,10 @@ export async function fetchDailyCandidatePool(selections) {
     };
     if (genres.length) params.with_genres = genres.map((genre) => DAILY_GENRE_IDS[genre]).join('|');
     const res = await tmdbFetch('/discover/movie', params);
-    if (!res.ok) return [];
+    if (!res.ok) {
+      trackApiError('tmdb_discover', res.status, true);
+      return [];
+    }
     const data = await res.json();
     const results = (data.results || []).slice(0, 20).map((movie) => ({
       id: `tmdb_${movie.id}`,
@@ -450,7 +465,8 @@ export async function fetchDailyCandidatePool(selections) {
       sessionStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data: results }));
     } catch {}
     return results;
-  } catch {
+  } catch (error) {
+    trackApiError('tmdb_discover', error.name || 'network_error', true);
     return [];
   }
 }
@@ -466,7 +482,10 @@ export async function fetchSimilarTMDB(tmdbId, count = 5) {
       language: 'zh-CN',
       page: '1',
     });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      trackApiError('tmdb_recommendations', res.status, true);
+      return [];
+    }
     const data = await res.json();
     return (data.results || []).slice(0, count).map((r) => ({
       id: `tmdb_${r.id}`,
@@ -478,7 +497,8 @@ export async function fetchSimilarTMDB(tmdbId, count = 5) {
       tags: genreIdsToTags(r.genre_ids || []),
       isTMDB: true,
     }));
-  } catch {
+  } catch (error) {
+    trackApiError('tmdb_recommendations', error.name || 'network_error', true);
     return [];
   }
 }

@@ -2,6 +2,7 @@ import { Navigate, Routes, Route, useNavigate } from 'react-router-dom';
 import { useState, useCallback, useEffect, lazy, Suspense } from 'react';
 import HomePage from './components/HomePage';
 import { enrichExternalMoviesBatch } from './services/tmdb';
+import { getFlowElapsedSeconds, trackEvent, trackEventOnce } from './utils/analytics';
 
 // 重型页面懒加载 — 减少首屏 JS 体积
 const MovieSelection = lazy(() => import('./components/MovieSelection'));
@@ -50,6 +51,10 @@ export default function App() {
   });
   const [enriching, setEnriching] = useState(false);
 
+  useEffect(() => {
+    trackEventOnce('visit', {}, 'visit');
+  }, []);
+
   const updateFlowA = useCallback((partial) => {
     setFlowAData((prev) => ({ ...prev, ...partial }));
   }, []);
@@ -72,12 +77,6 @@ export default function App() {
 
   // Step1 → Step2：外部 TMDB 电影 keywords 异步 enrichment
   const handleMoviesSelected = useCallback((movies, externalMovies) => {
-    if (window.umami) {
-      window.umami.track('flow_a_movies_complete', {
-        selected_count: movies.length,
-        external_count: Object.keys(externalMovies || {}).length,
-      });
-    }
     updateFlowA({
       selectedMovies: movies,
       externalMovies: externalMovies || {},
@@ -124,7 +123,13 @@ export default function App() {
                 enriching={enriching}
                 onNext={(tags) => {
                   updateFlowA({ tags, scores: null, profileVersion: PROFILE_ALGORITHM_VERSION });
-                  if (window.umami) window.umami.track('flow_a_tags_complete', { tag_count: tags.length });
+                  trackEvent('input_complete', {
+                    flow: 'a',
+                    selected_movie_count: flowAData.selectedMovies.length,
+                    external_movie_count: Object.keys(flowAData.externalMovies || {}).length,
+                    tag_count: tags.length,
+                    elapsed_seconds: getFlowElapsedSeconds('a'),
+                  });
                   navigate('/flow-a/step3');
                 }}
                 onBack={() => navigate('/flow-a/step1')}
@@ -165,7 +170,13 @@ export default function App() {
               <DailyContext
                 onNext={(data) => {
                   setFlowBData(data);
-                  if (window.umami) window.umami.track('flow_b_context_complete');
+                  trackEvent('input_complete', {
+                    flow: 'b',
+                    genre_count: data.genres?.length || 0,
+                    avoidance_count: data.avoidances?.length || 0,
+                    session: data.session,
+                    elapsed_seconds: getFlowElapsedSeconds('b'),
+                  });
                   navigate('/flow-b/step2');
                 }}
                 onBack={goHome}
