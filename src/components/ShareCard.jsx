@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
 import html2canvas from 'html2canvas';
 import { QRCodeSVG } from 'qrcode.react';
-import { getPersonalityName, pickSharePosters } from '../utils/personalityEngine';
+import { buildPreferenceProfile, getPersonalityName, pickSharePosters } from '../utils/personalityEngine';
 import { usePosterContext } from '../context/PosterContext';
 
 const SITE_URL = 'https://film-mirror.pages.dev/';
@@ -120,7 +120,11 @@ export default function ShareCard({ scores, selectedMovieIds, tags, externalMovi
   const [saving, setSaving] = useState(false);
   const { posterSources } = usePosterContext();
 
-  const personality = useMemo(() => getPersonalityName(scores), [scores]);
+  const preferenceTags = useMemo(
+    () => buildPreferenceProfile(selectedMovieIds || [], tags, externalMovies),
+    [selectedMovieIds, tags, externalMovies]
+  );
+  const personality = useMemo(() => getPersonalityName(scores, preferenceTags), [scores, preferenceTags]);
   const sharePosters = useMemo(
     () => pickSharePosters(scores, selectedMovieIds || [], 5, tags, externalMovies),
     [scores, selectedMovieIds, tags, externalMovies]

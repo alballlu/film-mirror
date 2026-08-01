@@ -1,7 +1,7 @@
 import { lazy, Suspense, useState, useMemo, useEffect } from 'react';
 import {
-  calculatePersonalityScore, getPersonalitySummary,
-  getDimensionText, getPersonalityName, buildPreferenceProfile, DIMENSIONS,
+  calculatePersonalityScore, getPersonalityNarrative,
+  getDimensionText, buildPreferenceProfile, DIMENSIONS,
 } from '../utils/personalityEngine';
 
 const ShareCard = lazy(() => import('./ShareCard'));
@@ -76,8 +76,10 @@ export default function PersonalityProfile({ tags, selectedMovieIds, externalMov
     () => calculatePersonalityScore(tags, selectedMovieIds, externalMovies),
     [tags, selectedMovieIds, externalMovies]
   );
-  const personalityName = useMemo(() => getPersonalityName(scores), [scores]);
-  const summary = useMemo(() => getPersonalitySummary(scores, preferenceTags), [scores, preferenceTags]);
+  const narrative = useMemo(
+    () => getPersonalityNarrative(scores, preferenceTags, selectedMovieIds.length),
+    [scores, preferenceTags, selectedMovieIds.length]
+  );
   const chartData = useMemo(
     () => DIMENSIONS.map((d) => ({ dimension: DIMENSION_LABELS[d], score: scores[d], full: 100 })),
     [scores]
@@ -99,7 +101,7 @@ export default function PersonalityProfile({ tags, selectedMovieIds, externalMov
 
   const generateShareContent = () => {
     const topDims = sortedDims.slice(0, 2).map(([d, s]) => `${d}(${s}%)`).join(' · ');
-    return `🎬 我在 FilmMirror 做了电影性格测试！\n\n我的性格画像关键词：${topDims}\n\n${summary}\n\n→ 来测测你的：https://film-mirror.pages.dev/\n\n#FilmMirror #电影镜像 #电影性格测试`;
+    return `🎬 我在 FilmMirror 做了电影性格测试！\n\n我的性格画像关键词：${topDims}\n\n${narrative.shareText}\n\n→ 来测测你的：https://film-mirror.pages.dev/\n\n#FilmMirror #电影镜像 #电影性格测试`;
   };
 
   const copyShareText = () => {
@@ -180,7 +182,10 @@ export default function PersonalityProfile({ tags, selectedMovieIds, externalMov
           <p style={{ fontStyle: 'italic', fontSize: '0.85rem', color: 'var(--gold)', marginBottom: 12 }}>
             ✦ 性格解读
           </p>
-          {summary}
+          <h3 className="profile-headline">{narrative.headline}</h3>
+          {narrative.paragraphs.map((paragraph) => (
+            <p key={paragraph} className="profile-paragraph">{paragraph}</p>
+          ))}
           <div className="profile-evidence" aria-label="本次画像的主要依据">
             <span>主要依据</span>
             {preferenceTags.slice(0, 5).map(({ tag, count }) => (
@@ -216,7 +221,7 @@ export default function PersonalityProfile({ tags, selectedMovieIds, externalMov
             </div>
             {expanded === dim && (
               <p className="dim-desc" style={{ animation: 'fadeIn 0.3s ease' }}>
-                {getDimensionText(dim, score)}
+                {getDimensionText(dim, score, preferenceTags)}
               </p>
             )}
           </div>

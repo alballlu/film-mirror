@@ -1,6 +1,6 @@
 import { useMemo, useRef, useEffect, useState } from 'react';
 import movies from '../data/movies.json';
-import { getRecommendations, getCareerAdvice } from '../utils/personalityEngine';
+import { buildPreferenceProfile, getRecommendations, getCareerAdvice } from '../utils/personalityEngine';
 import { usePosterContext } from '../context/PosterContext';
 import { fetchSimilarTMDB, getPosterUrl } from '../services/tmdb';
 
@@ -53,7 +53,11 @@ export default function Recommendation({ selectedMovieIds, externalMovies, tags,
     if (window.umami) window.umami.track('flow_a_complete', { recommendation_count: recs.length });
   }, [ensurePosters, recs]);
 
-  const career = useMemo(() => getCareerAdvice(scores), [scores]);
+  const preferenceTags = useMemo(
+    () => buildPreferenceProfile(selectedMovieIds, tags, externalMovies),
+    [selectedMovieIds, tags, externalMovies]
+  );
+  const career = useMemo(() => getCareerAdvice(scores, preferenceTags), [scores, preferenceTags]);
   const selectedMovies = useMemo(
     () => selectedMovieIds.map((id) => movies.find((m) => m.id === id)).filter(Boolean),
     [selectedMovieIds]
@@ -109,23 +113,30 @@ export default function Recommendation({ selectedMovieIds, externalMovies, tags,
       <div className="career-section animate-fade-up" style={{ animationDelay: '0.1s' }}>
         <h3 className="section-title">
           <span className="accent-line" />
-          你的性格在职场中
+          从观影偏好延伸出的工作方式
         </h3>
 
         <div className="career-card">
-          <p className="career-note" style={{ marginBottom: 16 }}>
+          <p className="career-note career-disclaimer">
             {career.intro}
           </p>
 
-          <div className="career-list">
-            {career.careerList.map((c, i) => (
-              <span key={i} className="career-tag">{c}</span>
+          <div className="career-paths">
+            {career.paths.map((path) => (
+              <article key={path.id} className="career-path-card">
+                <div className="career-path-heading">
+                  <span>{path.priority}</span>
+                  <h4>{path.title}</h4>
+                </div>
+                <div className="career-list">
+                  {path.roles.map((role) => <span key={role} className="career-tag">{role}</span>)}
+                </div>
+                <p><strong>为什么出现：</strong>{path.reason}</p>
+                <p><strong>常见工作方式：</strong>{path.workStyle}</p>
+                <p className="career-experiment"><strong>低成本验证：</strong>{path.experiment}</p>
+              </article>
             ))}
           </div>
-
-          <p className="career-note">
-            当然，电影品味不能决定你该做什么工作——这更像是一个轻松的参考。真正的职业选择还要看你的技能、兴趣和当下的机会。但不妨想一想：上面这些方向里，有没有一个让你心跳快了一拍？那就是值得探索的线索。
-          </p>
         </div>
       </div>
 
