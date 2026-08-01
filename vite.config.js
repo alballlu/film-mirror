@@ -7,17 +7,9 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 3000,
-    open: true,
+    open: false,
   },
   build: {
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          'vendor-charts': ['recharts'],
-          'vendor-utils': ['html2canvas', 'qrcode.react', 'canvas-confetti'],
-        },
-      },
-    },
     chunkSizeWarningLimit: 500,
   },
 });

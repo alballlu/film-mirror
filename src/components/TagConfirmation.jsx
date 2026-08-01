@@ -1,10 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import movies from '../data/movies.json';
 import { extractTags } from '../utils/personalityEngine';
 import { usePosterContext } from '../context/PosterContext';
 
 export default function TagConfirmation({ selectedMovieIds, externalMovies, enriching, onNext, onBack }) {
-  const { posters } = usePosterContext();
+  const { posters, ensurePosters } = usePosterContext();
   const extracted = useMemo(() => extractTags(selectedMovieIds, externalMovies), [selectedMovieIds, externalMovies]);
   const [tags, setTags] = useState(extracted.map((t) => t.tag));
   const [input, setInput] = useState('');
@@ -20,6 +20,10 @@ export default function TagConfirmation({ selectedMovieIds, externalMovies, enri
         .filter(Boolean),
     [selectedMovieIds, externalMovies]
   );
+
+  useEffect(() => {
+    ensurePosters(selectedMovies);
+  }, [ensurePosters, selectedMovies]);
 
   const removeTag = (tag) => setTags((prev) => prev.filter((t) => t !== tag));
   const addTag = () => {
@@ -64,6 +68,8 @@ export default function TagConfirmation({ selectedMovieIds, externalMovies, enri
               <img
                 src={posters[m.id]}
                 alt={m.title}
+                loading="lazy"
+                decoding="async"
                 style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0 }}
               />
             ) : (

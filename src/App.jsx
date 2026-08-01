@@ -1,15 +1,15 @@
-import { Routes, Route, useNavigate } from 'react-router-dom';
-import { useState, useCallback, lazy, Suspense } from 'react';
+import { Navigate, Routes, Route, useNavigate } from 'react-router-dom';
+import { useState, useCallback, useEffect, lazy, Suspense } from 'react';
 import HomePage from './components/HomePage';
-import TagConfirmation from './components/TagConfirmation';
-import DailyContext from './components/DailyContext';
-import DailyResult from './components/DailyResult';
 import { enrichExternalMoviesBatch } from './services/tmdb';
 
 // 重型页面懒加载 — 减少首屏 JS 体积
 const MovieSelection = lazy(() => import('./components/MovieSelection'));
+const TagConfirmation = lazy(() => import('./components/TagConfirmation'));
 const PersonalityProfile = lazy(() => import('./components/PersonalityProfile'));
 const Recommendation = lazy(() => import('./components/Recommendation'));
+const DailyContext = lazy(() => import('./components/DailyContext'));
+const DailyResult = lazy(() => import('./components/DailyResult'));
 
 // 路由级 loading fallback
 function PageLoader() {
@@ -28,18 +28,34 @@ function PageLoader() {
 
 export default function App() {
   const navigate = useNavigate();
-  const [flowAData, setFlowAData] = useState({
-    selectedMovies: [],
-    tags: [],
-    scores: null,
-    externalMovies: {},
+  const [flowAData, setFlowAData] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('filmmirror_flow_a');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return { selectedMovies: [], tags: [], scores: null, externalMovies: {} };
   });
-  const [flowBData, setFlowBData] = useState(null);
+  const [flowBData, setFlowBData] = useState(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem('filmmirror_flow_b')) || null;
+    } catch {
+      return null;
+    }
+  });
   const [enriching, setEnriching] = useState(false);
 
   const updateFlowA = useCallback((partial) => {
     setFlowAData((prev) => ({ ...prev, ...partial }));
   }, []);
+
+  useEffect(() => {
+    sessionStorage.setItem('filmmirror_flow_a', JSON.stringify(flowAData));
+  }, [flowAData]);
+
+  useEffect(() => {
+    if (flowBData) sessionStorage.setItem('filmmirror_flow_b', JSON.stringify(flowBData));
+    else sessionStorage.removeItem('filmmirror_flow_b');
+  }, [flowBData]);
 
   const startFlowA = () => navigate('/flow-a/step1');
   const startFlowB = () => {
@@ -50,6 +66,12 @@ export default function App() {
 
   // Step1 → Step2：外部 TMDB 电影 keywords 异步 enrichment
   const handleMoviesSelected = useCallback((movies, externalMovies) => {
+    if (window.umami) {
+      window.umami.track('flow_a_movies_complete', {
+        selected_count: movies.length,
+        external_count: Object.keys(externalMovies || {}).length,
+      });
+    }
     updateFlowA({
       selectedMovies: movies,
       externalMovies: externalMovies || {},
@@ -90,22 +112,23 @@ export default function App() {
           <Route
             path="/flow-a/step2"
             element={
-              <TagConfirmation
+              flowAData.selectedMovies.length >= 8 ? <TagConfirmation
                 selectedMovieIds={flowAData.selectedMovies}
                 externalMovies={flowAData.externalMovies}
                 enriching={enriching}
                 onNext={(tags) => {
                   updateFlowA({ tags });
+                  if (window.umami) window.umami.track('flow_a_tags_complete', { tag_count: tags.length });
                   navigate('/flow-a/step3');
                 }}
                 onBack={() => navigate('/flow-a/step1')}
-              />
+              /> : <Navigate to="/flow-a/step1" replace />
             }
           />
           <Route
             path="/flow-a/step3"
             element={
-              <PersonalityProfile
+              flowAData.tags.length > 0 ? <PersonalityProfile
                 tags={flowAData.tags}
                 selectedMovieIds={flowAData.selectedMovies}
                 externalMovies={flowAData.externalMovies}
@@ -114,20 +137,20 @@ export default function App() {
                   navigate('/flow-a/step4');
                 }}
                 onBack={() => navigate('/flow-a/step2')}
-              />
+              /> : <Navigate to="/flow-a/step2" replace />
             }
           />
           <Route
             path="/flow-a/step4"
             element={
-              <Recommendation
+              flowAData.scores ? <Recommendation
                 selectedMovieIds={flowAData.selectedMovies}
                 externalMovies={flowAData.externalMovies}
                 tags={flowAData.tags}
                 scores={flowAData.scores}
                 onBack={() => navigate('/flow-a/step3')}
                 onRestart={goHome}
-              />
+              /> : <Navigate to="/flow-a/step3" replace />
             }
           />
           <Route
@@ -136,6 +159,7 @@ export default function App() {
               <DailyContext
                 onNext={(data) => {
                   setFlowBData(data);
+                  if (window.umami) window.umami.track('flow_b_context_complete');
                   navigate('/flow-b/step2');
                 }}
                 onBack={goHome}
@@ -145,11 +169,11 @@ export default function App() {
           <Route
             path="/flow-b/step2"
             element={
-              <DailyResult
+              flowBData ? <DailyResult
                 data={flowBData}
                 onBack={() => navigate('/flow-b/step1')}
                 onRestart={goHome}
-              />
+              /> : <Navigate to="/flow-b/step1" replace />
             }
           />
         </Routes>

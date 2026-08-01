@@ -1,90 +1,48 @@
-# 🎬 FilmMirror · 电影镜像
+# FilmMirror · 电影镜像
 
-**选几部你喜欢的电影，发现你的电影性格画像。**
+通过用户喜欢的电影生成六维性格画像，并提供“今天看什么”的情境化推荐。
 
-FilmMirror 通过你选择的电影，分析你的 6 维人格特质（逻辑分析、自由探索、情感共鸣、美学感知、权威质疑、内省深度），生成专属的雷达图 + 性格解读 + 个性化推荐 + 可分享的票根风格分享卡。
-
----
-
-## 🚀 部署到 Cloudflare Pages（推荐 · 国内稳定）
-
-### 1. 准备工作
-- GitHub 账号（已托管代码）
-- [Cloudflare 账号](https://dash.cloudflare.com/sign-up)（免费注册）
-- [TMDB API Key](https://www.themoviedb.org/settings/api)（免费申请）
-
-### 2. 部署步骤
-
-**第一步：确保仓库已推送到 GitHub**
-```bash
-git push origin main
-```
-
-**第二步：打开 Cloudflare Dashboard**
-1. 进入 **Workers & Pages** → **Pages** → **连接到 Git**
-2. 授权 GitHub，选择 `film-mirror` 仓库
-3. 构建设置：
-   - **构建命令**：`npm run build`
-   - **输出目录**：`dist`
-4. **保存并部署**
-
-**第三步：设置环境变量**（部署后进入 Settings → Environment variables）
-
-| 变量名 | 值 |
-|---|---|
-| `TMDB_API_KEY` | 你的 TMDB API Key（Functions 后端代理 TMDB） |
-| `VITE_TMDB_API_URL` | `/api/tmdb-proxy`（前端构建时注入） |
-| `VITE_TMDB_API_KEY` | 你的 TMDB API Key（🔴 前端兜底直连，代理失败时） |
-
-> ⚠️ **三个变量都要添加！** 全部勾选 "Production" 和 "Preview" 环境。
-> `VITE_TMDB_API_KEY` 是兜底方案：当 Cloudflare Functions 代理不可用时，前端直接请求 TMDB。
-
-**第四步：重新部署** — 添加环境变量后，在 Deployments 里点 "Retry deployment" 或推一个新 commit 触发重新构建。
-
----
-
-### 3. 为什么选 Cloudflare Pages？
-
-| | GitHub Pages | Cloudflare Pages |
-|---|---|---|
-| 国内访问速度 | ⭐ 经常超时 | ⭐⭐⭐⭐ 香港/台北节点 |
-| TMDB API | ❌ 直连，被墙 | ✅ Functions 代理 |
-| 费用 | 免费 | 免费（无限带宽） |
-| 自定义域名 | 支持 | 支持 + 自动 SSL |
-
----
+- 正式地址：https://film-mirror.pages.dev/
+- 代码托管：GitHub
+- 唯一生产环境：Cloudflare Pages
 
 ## 本地开发
 
 ```bash
 npm install
-npm run dev        # 启动 → http://localhost:5173
-npm run build      # 生产构建
+npm run dev
+npm run build
 ```
 
-本地运行时需要 `.env.local` 文件：
+本地 Vite 只负责前端页面；TMDB 搜索和海报由 Cloudflare Pages Functions 提供。前端不保存、注入或直连任何 TMDB Key。
 
+## Cloudflare Pages 部署
+
+1. 在 Cloudflare Pages 连接 GitHub 仓库 `alballlu/film-mirror`，生产分支选择 `main`。
+2. 构建命令填写 `npm run build`，输出目录填写 `dist`。
+3. 在 Settings → Variables and Secrets 中新增加密变量 `TMDB_API_KEY`，并同时应用于 Production 与 Preview。
+4. 重新部署后检查：
+   - `/api/health` 应返回 HTTP 200 与 `"status":"ok"`。
+   - `/api/tmdb-proxy?action=search&query=Inception&language=zh-CN` 应返回 JSON。
+   - `/api/tmdb-image?path=/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg` 应返回 `image/*`。
+
+不再使用 GitHub Pages 或 Vercel。GitHub 只承担代码托管、分支管理和版本追踪。
+
+## 海报预取
+
+运行时只会为用户当前看到的电影请求海报，不再进入首页就遍历全部 172 部电影。为了进一步减少首次访问请求，可在本地使用新的 TMDB Key 一次性补全 `tmdbPosterPath`：
+
+```bash
+node scripts/prefetch-posters.mjs
 ```
-VITE_TMDB_API_KEY=你的TMDB_API_Key
-```
 
----
+运行前仅在当前终端设置 `TMDB_API_KEY`；不要把 Key 写进源码或提交到 GitHub。
 
-## 关于国内域名备案
+## 数据与复盘
 
-| 方案 | 费用 | 说明 |
-|---|---|---|
-| Cloudflare 自带 `xxx.pages.dev` | ¥0 永久免费 | 直接可用，无需备案 |
-| `.com` 域名 | ~¥50/年 | 不需备案，Cloudflare 一键绑定 |
-| `.cn` 域名 | ~¥29/年 | 必须 ICP 备案，耗时 ~15 工作日 |
-
-**建议**：先用 Cloudflare 的免费域名跑起来；以后想绑 `.com` 随时加，Cloudflare 支持一键配置 + 自动 SSL。
-
----
+- 产品复盘与四周路线：`docs/PRODUCT_REVIEW.md`
+- 部署与验收清单：`docs/DEPLOYMENT_CHECKLIST.md`
 
 ## 技术栈
 
-- React 18 + React Router 6 · Vite 5
-- Recharts（雷达图）· html2canvas（分享卡截图）
-- TMDB API（电影海报 + 搜索）
-- Cloudflare Pages Functions（API 代理）
+React 18、React Router 6、Vite 5、Recharts、Cloudflare Pages Functions、TMDB、Umami。

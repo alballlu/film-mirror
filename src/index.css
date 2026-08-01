@@ -10,14 +10,14 @@
   /* 文字 — 暖色米白 */
   --text-bright: #ede5d6;
   --text-primary: #cec5af;
-  --text-secondary: #8e9097;
-  --text-muted: #60646d;
-  --text-faint: #40454f;
+  --text-secondary: #a9adb7;
+  --text-muted: #858b98;
+  --text-faint: #6f7684;
 
   /* 强调色 — 温暖金 */
   --gold: #c9a86c;
   --gold-light: #dfc49a;
-  --gold-dim: #8b7345;
+  --gold-dim: #a98a52;
   --gold-glow: rgba(201,168,108,0.15);
   --gold-glow-strong: rgba(201,168,108,0.3);
 
@@ -32,9 +32,9 @@
   --glass-blur: blur(24px);
 
   /* 字体 */
-  --font-serif-zh: 'Noto Serif SC', 'Source Han Serif CN', serif;
-  --font-serif-en: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
-  --font-sans: 'Inter', 'Noto Sans SC', sans-serif;
+  --font-serif-zh: 'Songti SC', STSong, SimSun, serif;
+  --font-serif-en: Georgia, 'Times New Roman', serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
 
   /* 圆角、过渡 */
   --radius-sm: 8px;
@@ -96,10 +96,56 @@ body {
   animation: softPulse 3s ease-in-out infinite;
 }
 
+.step-progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(100%, 360px);
+  margin: 0 auto 28px;
+}
+
+.progress-step {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border-default);
+  border-radius: 50%;
+  color: var(--text-muted);
+  font-size: 12px;
+  background: var(--bg-card);
+}
+
+.progress-step.active,
+.progress-step.done {
+  border-color: var(--gold);
+  color: var(--bg-deep);
+  background: var(--gold);
+}
+
+.progress-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border-default);
+}
+
+.progress-line.done {
+  background: var(--gold);
+}
+
 /* ========== Shared Button Styles ========== */
 button, .category-tab, .home-card, .movie-card {
   min-height: 44px;
   -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+.home-card:focus-visible,
+.movie-card:focus-visible,
+.context-option:focus-visible {
+  outline: 2px solid var(--gold-light);
+  outline-offset: 3px;
 }
 
 /* ========== Home Page ========== */
@@ -1150,7 +1196,9 @@ button, .category-tab, .home-card, .movie-card {
 
 .poster-area {
   position: relative;
+  width: 100%;
   max-width: 200px;
+  margin: 0 auto;
   aspect-ratio: 2 / 3;
   overflow: hidden;
   display: flex;

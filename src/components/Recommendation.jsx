@@ -6,7 +6,7 @@ import { fetchSimilarTMDB, getPosterUrl } from '../services/tmdb';
 
 export default function Recommendation({ selectedMovieIds, externalMovies, tags, scores, onBack, onRestart }) {
   const [animated, setAnimated] = useState(false);
-  const { posters } = usePosterContext();
+  const { posters, ensurePosters } = usePosterContext();
   useEffect(() => { setTimeout(() => setAnimated(true), 200); }, []);
   const [feedback, setFeedback] = useState(() => localStorage.getItem('filmmirror_feedback') || '');
   const [feedbackSent, setFeedbackSent] = useState(false);
@@ -48,6 +48,11 @@ export default function Recommendation({ selectedMovieIds, externalMovies, tags,
     [selectedMovieIds, tags, scores]
   );
 
+  useEffect(() => {
+    ensurePosters(recs);
+    if (window.umami) window.umami.track('flow_a_complete', { recommendation_count: recs.length });
+  }, [ensurePosters, recs]);
+
   const career = useMemo(() => getCareerAdvice(scores), [scores]);
   const selectedMovies = useMemo(
     () => selectedMovieIds.map((id) => movies.find((m) => m.id === id)).filter(Boolean),
@@ -72,7 +77,7 @@ export default function Recommendation({ selectedMovieIds, externalMovies, tags,
       const result = await res.json();
       if (result.success) {
         setFeedbackSent(true);
-        if (window.umami) umami.track('feedback_submitted');
+        if (window.umami) window.umami.track('feedback_submitted');
       }
     } catch (e) {
       // 网络失败也没关系，localStorage 已经存了
@@ -81,8 +86,8 @@ export default function Recommendation({ selectedMovieIds, externalMovies, tags,
   };
 
   return (
-    <div className={`page ${animated ? 'animate-fade-in' : ''}`}>
-      <div className="progress-bar">
+    <div className={`page rec-page ${animated ? 'animate-fade-in' : ''}`}>
+      <div className="step-progress" aria-label="深度体验进度：第 4 步，共 4 步">
         <div className="progress-step done">✓</div>
         <div className="progress-line done" />
         <div className="progress-step done">✓</div>
@@ -144,6 +149,8 @@ export default function Recommendation({ selectedMovieIds, externalMovies, tags,
               className="rec-movie-poster"
               src={posters[movie.id] || ''}
               alt={movie.title}
+              loading="lazy"
+              decoding="async"
               onError={(e) => {
                 e.target.style.display = 'none';
                 e.target.parentElement.querySelector('.rec-poster-fallback').style.display = 'flex';
@@ -187,6 +194,8 @@ export default function Recommendation({ selectedMovieIds, externalMovies, tags,
                   className="rec-movie-poster"
                   src={getPosterUrl(movie.posterPath)}
                   alt={movie.title}
+                  loading="lazy"
+                  decoding="async"
                   onError={(e) => {
                     e.target.style.display = 'none';
                     e.target.parentElement.querySelector('.rec-poster-fallback').style.display = 'flex';

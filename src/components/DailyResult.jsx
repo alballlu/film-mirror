@@ -22,14 +22,24 @@ export default function DailyResult({ data, onBack, onRestart }) {
   const [rerollKey, setRerollKey] = useState(0);
   const [excludedIds, setExcludedIds] = useState([]);
   const [result, setResult] = useState(() => getDailyRecommendation(data));
-  const { posters } = usePosterContext();
+  const { posters, ensurePosters } = usePosterContext();
 
   useEffect(() => {
     const t = setTimeout(() => setFlipped(true), 150);
     return () => clearTimeout(t);
   }, [rerollKey]);
 
+  useEffect(() => {
+    if (!result?.movie) return;
+    ensurePosters([result.movie]);
+  }, [ensurePosters, result?.movie?.id]);
+
+  useEffect(() => {
+    if (window.umami) window.umami.track('flow_b_complete');
+  }, []);
+
   const handleReroll = () => {
+    if (window.umami) window.umami.track('daily_reroll');
     setFlipped(false);
     setTimeout(() => {
       const newExcluded = [...excludedIds, result.movie.id];
@@ -47,11 +57,12 @@ export default function DailyResult({ data, onBack, onRestart }) {
   const shareContent = useMemo(() => {
     if (!result) return '';
     const { movie } = result;
-    return `🎬 今天的 FilmMirror 给我推荐了《${movie.title}》（${movie.year}）\n\n${result.text}\n\n${interpretation}\n\n→ 来查收你的今日电影：film-mirror.vercel.app\n\n#FilmMirror #今日电影`;
+    return `🎬 今天的 FilmMirror 给我推荐了《${movie.title}》（${movie.year}）\n\n${result.text}\n\n${interpretation}\n\n→ 来查收你的今日电影：https://film-mirror.pages.dev/\n\n#FilmMirror #今日电影`;
   }, [result, interpretation]);
 
   const copyShare = () => {
     navigator.clipboard.writeText(shareContent).catch(() => {});
+    if (window.umami) window.umami.track('daily_share_copy');
   };
 
   const gradientColors = ['#3a2a1a', '#2a3a2a', '#2a2a3a', '#3a3a2a', '#4a3a2a', '#2a4a2a', '#3a2a4a', '#2a4a3a'];
@@ -68,7 +79,7 @@ export default function DailyResult({ data, onBack, onRestart }) {
   const bgColor = gradientColors[movie.id % gradientColors.length];
 
   return (
-    <div className="page animate-fade-in">
+    <div className="page daily-result-page animate-fade-in">
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 28 }}>
         <button className="btn-ghost" onClick={onBack}>← 返回修改</button>
         <h2 className="section-title" style={{ marginBottom: 0 }}>
@@ -98,7 +109,7 @@ export default function DailyResult({ data, onBack, onRestart }) {
         <div className="daily-movie-card animate-scale-in" style={{ animationDelay: '0.3s' }}>
           <div className="poster-area" style={{ background: `linear-gradient(135deg, ${bgColor}, #1c1b19)` }}>
             {posters[movie.id] ? (
-              <img src={posters[movie.id]} alt={movie.title} className="poster-img" />
+              <img src={posters[movie.id]} alt={movie.title} className="poster-img" decoding="async" />
             ) : (
               <div className="poster-mood-fallback">
                 <span className="mood-emoji">{getMoodEmoji(data)}</span>

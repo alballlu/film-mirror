@@ -42,11 +42,22 @@ function MovieCard({ movie, selected, posterUrl, animationDelay, onToggle }) {
       className={`movie-card ${selected ? 'selected' : ''}`}
       style={{ animationDelay: `${animationDelay}ms` }}
       onClick={() => onToggle(movie.id)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onToggle(movie.id);
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-pressed={selected}
+      aria-label={`${selected ? '取消选择' : '选择'}《${movie.title}》`}
     >
       {/* 无海报 / 海报加载失败时，显示渐变底色 */}
       {!showPoster && (
         <div style={{
           position: 'absolute', inset: 0,
+          zIndex: 0,
           background: `linear-gradient(135deg, hsl(${hue}, 30%, 22%), hsl(${(hue + 30) % 360}, 25%, 14%))`,
         }} />
       )}
@@ -55,6 +66,8 @@ function MovieCard({ movie, selected, posterUrl, animationDelay, onToggle }) {
           src={posterUrl}
           alt={movie.title}
           onError={handlePosterError}
+          loading="lazy"
+          decoding="async"
           style={{
             position: 'absolute',
             inset: 0,
@@ -67,31 +80,31 @@ function MovieCard({ movie, selected, posterUrl, animationDelay, onToggle }) {
       ) : null}
       <div
         className="movie-first-char"
-        style={
-          showPoster
-            ? { position: 'relative', zIndex: 1, textShadow: '0 2px 8px rgba(0,0,0,0.7)' }
-            : {}
-        }
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          ...(showPoster ? { textShadow: '0 2px 8px rgba(0,0,0,0.7)' } : {}),
+        }}
       >
         {char}
       </div>
       <div
         className="movie-card-title"
-        style={
-          showPoster
-            ? { position: 'relative', zIndex: 1, textShadow: '0 1px 4px rgba(0,0,0,0.7)' }
-            : {}
-        }
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          ...(showPoster ? { textShadow: '0 1px 4px rgba(0,0,0,0.7)' } : {}),
+        }}
       >
         {movie.title}
       </div>
       <div
         className="movie-card-director"
-        style={
-          showPoster
-            ? { position: 'relative', zIndex: 1, textShadow: '0 1px 4px rgba(0,0,0,0.7)' }
-            : {}
-        }
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          ...(showPoster ? { textShadow: '0 1px 4px rgba(0,0,0,0.7)' } : {}),
+        }}
       >
         {movie.director || (movie.isTMDB ? '来自 TMDB' : '')}
       </div>
@@ -104,7 +117,7 @@ export default function MovieSelection({ selectedMovies: initial, onNext, onBack
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
-  const { posters } = usePosterContext();
+  const { posters, ensurePosters } = usePosterContext();
 
   // TMDB 在线搜索
   const [tmdbResults, setTmdbResults] = useState([]);
@@ -145,6 +158,15 @@ export default function MovieSelection({ selectedMovies: initial, onNext, onBack
 
     return result;
   }, [filter, search]);
+
+  const visibleMovies = useMemo(
+    () => filteredMovies.slice(0, visibleCount),
+    [filteredMovies, visibleCount]
+  );
+
+  useEffect(() => {
+    ensurePosters(visibleMovies);
+  }, [ensurePosters, visibleMovies]);
 
   // 切换分类或搜索时重置分页 + 清除 TMDB 结果
   useEffect(() => {
@@ -295,13 +317,13 @@ export default function MovieSelection({ selectedMovies: initial, onNext, onBack
           {/* 本地结果 */}
           {filteredMovies.length > 0 && (
             <div className="movie-grid">
-              {filteredMovies.slice(0, visibleCount).map((movie, i) => (
+              {visibleMovies.map((movie, i) => (
                 <MovieCard
                   key={movie.id}
                   movie={movie}
                   selected={selected.has(movie.id)}
                   posterUrl={posters[movie.id]}
-                  animationDelay={(i % BATCH_SIZE) * 50}
+                  animationDelay={Math.min((i % BATCH_SIZE) * 20, 240)}
                   onToggle={(id) => toggle(id, null)}
                 />
               ))}
@@ -334,7 +356,7 @@ export default function MovieSelection({ selectedMovies: initial, onNext, onBack
                     movie={movie}
                     selected={selected.has(movie.id)}
                     posterUrl={getPosterForMovie(movie)}
-                    animationDelay={(i % BATCH_SIZE) * 50}
+                    animationDelay={Math.min((i % BATCH_SIZE) * 20, 240)}
                     onToggle={(id) => toggle(id, movie)}
                   />
                 ))}
