@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { trackEvent } from '../utils/analytics';
 
 const EFFECTS = [
   { key: 'relax', emoji: '🌿', label: '轻松一点' },
@@ -48,6 +49,11 @@ export default function DailyContext({ onNext, onBack }) {
 
   const handleSubmit = () => {
     if (missing.length) {
+      trackEvent('validation_error', {
+        flow: 'b',
+        step: 'context',
+        missing_fields: missing,
+      });
       const index = !effect ? 0 : genres.length === 0 ? 1 : 2;
       groupRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       groupRefs.current[index]?.focus({ preventScroll: true });

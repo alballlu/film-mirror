@@ -7,7 +7,7 @@ import {
   getPosterUrl,
   getStaticPosterPath,
 } from '../services/tmdb';
-import { trackApiError, trackEvent } from '../utils/analytics';
+import { trackApiError, trackPosterError } from '../utils/analytics';
 
 const PosterContext = createContext({});
 
@@ -57,10 +57,11 @@ export function PosterProvider({ children }) {
     results.forEach((result) => {
       if (result.status !== 'fulfilled' || !result.value.path) {
         const movie = result.status === 'fulfilled' ? result.value.movie : null;
-        trackEvent('poster_error', {
-          movie_id: movie?.id || 'unknown',
-          poster_source: 'tmdb_search',
+        trackPosterError({
+          movieId: movie?.id || 'unknown',
+          source: 'tmdb_search',
           reason: result.status === 'rejected' ? 'request_rejected' : 'poster_not_found',
+          surface: 'poster_context',
         });
         return;
       }

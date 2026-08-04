@@ -3,7 +3,14 @@ import { getDailyRecommendations, generateInterpretation } from '../utils/dailyE
 import { usePosterContext } from '../context/PosterContext';
 import { fetchDailyCandidatePool, getPosterUrl } from '../services/tmdb';
 import ConfettiEffect from './ConfettiEffect';
-import { trackEvent, trackEventOnce } from '../utils/analytics';
+import {
+  getFlowInstanceId,
+  trackEvent,
+  trackEventOnce,
+  trackFlowComplete,
+  trackPosterError,
+  trackRecommendationImpression,
+} from '../utils/analytics';
 
 const FEEDBACK_ACTIONS = [
   { key: 'want', label: '＋ 想看' },
@@ -47,18 +54,36 @@ export default function DailyResult({ data, onBack, onRestart }) {
 
   useEffect(() => {
     if (!result) return;
-    trackEventOnce('result_view', {
+    const instance = getFlowInstanceId('b') || 'unknown';
+    trackEventOnce('recommendation_view', {
       flow: 'b',
       result_type: 'daily_recommendation',
       candidate_count: result.poolSize,
       mirror_movie_id: result.mirror.movie.id,
       window_movie_id: result.window.movie.id,
-    }, 'result_view:b');
-  }, [result]);
+      algorithm_version: 'daily_v2',
+    }, `recommendation_view:b:${instance}`);
+    trackFlowComplete('b', {
+      result_type: 'daily_recommendation',
+      candidate_count: result.poolSize,
+      algorithm_version: 'daily_v2',
+    });
+    trackRecommendationImpression('b', result.mirror.movie, {
+      track: 'mirror', reroll_number: rerollKey, candidate_count: result.poolSize, algorithm_version: 'daily_v2',
+    });
+    trackRecommendationImpression('b', result.window.movie, {
+      track: 'window', reroll_number: rerollKey, candidate_count: result.poolSize, algorithm_version: 'daily_v2',
+    });
+  }, [result, rerollKey]);
 
   const handleReroll = () => {
     if (isRerolling || !result) return;
-    trackEvent('reroll', { flow: 'b', reroll_number: rerollKey + 1 });
+    trackEvent('reroll', {
+      flow: 'b',
+      reroll_number: rerollKey + 1,
+      mirror_movie_id: result.mirror.movie.id,
+      window_movie_id: result.window.movie.id,
+    });
     setIsRerolling(true);
     window.setTimeout(() => {
       const newExcluded = [...excludedIds, result.mirror.movie.id, result.window.movie.id];
@@ -87,10 +112,17 @@ export default function DailyResult({ data, onBack, onRestart }) {
     try {
       await navigator.clipboard.writeText(shareContent);
       setToast('分享文案已复制');
+      trackEvent('share', {
+        flow: 'b',
+        share_type: 'copy_text',
+        track: selectedMode,
+        movie_id: activeResult?.movie?.id,
+        reroll_number: rerollKey,
+      });
     } catch {
       setToast('复制失败，请稍后重试');
+      trackEvent('share_error', { flow: 'b', share_type: 'copy_text' });
     }
-    trackEvent('share', { flow: 'b', share_type: 'copy_text', result_mode: selectedMode });
   };
 
   const submitFeedback = (mode, action, reason = '') => {
@@ -106,10 +138,15 @@ export default function DailyResult({ data, onBack, onRestart }) {
     setToast(action === 'want' ? '已加入“想看”记录' : action === 'seen' ? '已记录“看过”' : '收到，下一轮会避开');
     trackEvent('recommendation_feedback', {
       flow: 'b',
-      result_mode: mode,
+      track: mode,
       action,
       reason,
       movie_id: movie.id,
+      movie_title: movie.title,
+      match_score: movie.matchScore,
+      reroll_number: rerollKey,
+      candidate_count: result.poolSize,
+      algorithm_version: 'daily_v2',
     });
   };
 
@@ -135,16 +172,21 @@ export default function DailyResult({ data, onBack, onRestart }) {
           <div><span className="track-label">{label}</span><h3>{subtitle}</h3></div>
           <strong>{movie.matchScore}%</strong>
         </div>
-        <button type="button" className="track-select" onClick={() => setSelectedMode(mode)} aria-label={`选择${label}推荐《${movie.title}》`}>
+        <button type="button" className="track-select" onClick={() => {
+          setSelectedMode(mode);
+          trackEvent('recommendation_select', {
+            flow: 'b', track: mode, movie_id: movie.id, match_score: movie.matchScore, reroll_number: rerollKey,
+          });
+        }} aria-label={`选择${label}推荐《${movie.title}》`}>
           <div className="track-poster">
             {poster ? <img
               src={poster}
               alt={`${movie.title}海报`}
               decoding="async"
-              onError={() => trackEvent('poster_error', {
-                flow: 'b',
-                movie_id: movie.id,
-                poster_source: movie.isTMDB ? 'tmdb_dynamic' : 'tmdb_proxy',
+              onError={() => trackPosterError({
+                flow: 'b', movieId: movie.id,
+                source: movie.isTMDB ? 'tmdb_dynamic' : 'tmdb_proxy',
+                surface: 'daily_result',
               })}
             /> : <span>{movie.title.slice(0, 1)}</span>}
           </div>

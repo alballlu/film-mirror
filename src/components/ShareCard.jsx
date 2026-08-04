@@ -148,7 +148,6 @@ export default function ShareCard({ scores, selectedMovieIds, tags, externalMovi
   const handleDownload = async () => {
     if (!cardRef.current) return;
     setSaving(true);
-      trackEvent('share', { flow: 'a', share_type: 'download_card', result_type: 'personality_profile' });
     try {
       const canvas = await html2canvas(cardRef.current, {
         scale: 2,
@@ -163,8 +162,15 @@ export default function ShareCard({ scores, selectedMovieIds, tags, externalMovi
       link.download = `FilmMirror_${personality.code}_${ticketNo}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
+      trackEvent('share', {
+        flow: 'a',
+        share_type: 'download_card',
+        result_type: 'personality_profile',
+        personality_code: personality.code,
+      });
     } catch (e) {
       console.error('Share card generation failed', e);
+      trackEvent('share_error', { flow: 'a', share_type: 'download_card' });
     }
     setSaving(false);
   };

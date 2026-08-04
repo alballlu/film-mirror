@@ -3,6 +3,20 @@ import movies from '../data/movies.json';
 import { buildPreferenceProfile, getRecommendations, getCareerAdvice } from '../utils/personalityEngine';
 import { usePosterContext } from '../context/PosterContext';
 import { fetchSimilarTMDB, getPosterUrl } from '../services/tmdb';
+import {
+  feedbackLengthBucket,
+  trackEvent,
+  trackEventOnce,
+  trackFlowComplete,
+  trackPosterError,
+  trackRecommendationImpression,
+} from '../utils/analytics';
+
+const FEEDBACK_ACTIONS = [
+  { key: 'want', label: '＋ 想看' },
+  { key: 'seen', label: '✓ 看过' },
+  { key: 'dislike', label: '× 不想看' },
+];
 
 export default function Recommendation({ selectedMovieIds, externalMovies, tags, scores, onBack, onRestart }) {
   const [animated, setAnimated] = useState(false);
@@ -11,6 +25,7 @@ export default function Recommendation({ selectedMovieIds, externalMovies, tags,
   const [feedback, setFeedback] = useState(() => localStorage.getItem('filmmirror_feedback') || '');
   const [feedbackSent, setFeedbackSent] = useState(false);
   const [feedbackSending, setFeedbackSending] = useState(false);
+  const [movieFeedback, setMovieFeedback] = useState({});
 
   // 混合推荐：用户选了外部 TMDB 电影时，为其找到相似电影
   const [tmdbSimilar, setTmdbSimilar] = useState([]);
@@ -50,8 +65,37 @@ export default function Recommendation({ selectedMovieIds, externalMovies, tags,
 
   useEffect(() => {
     ensurePosters(recs);
-    if (window.umami) window.umami.track('flow_a_complete', { recommendation_count: recs.length });
+    trackEventOnce('recommendation_view', {
+      flow: 'a',
+      result_type: 'ranked_recommendations',
+      recommendation_count: recs.length,
+      algorithm_version: 'profile_v2',
+    }, 'recommendation_view:a');
+    trackFlowComplete('a', {
+      result_type: 'ranked_recommendations',
+      recommendation_count: recs.length,
+      algorithm_version: 'profile_v2',
+    });
+    recs.forEach((movie, index) => trackRecommendationImpression('a', movie, {
+      rank: index + 1,
+      track: 'ranked',
+      algorithm_version: 'profile_v2',
+    }));
   }, [ensurePosters, recs]);
+
+  const submitMovieFeedback = (movie, action, rank) => {
+    setMovieFeedback((current) => ({ ...current, [movie.id]: action }));
+    trackEvent('recommendation_feedback', {
+      flow: 'a',
+      movie_id: movie.id,
+      movie_title: movie.title,
+      action,
+      rank,
+      match_score: movie.matchScore,
+      track: 'ranked',
+      algorithm_version: 'profile_v2',
+    });
+  };
 
   const preferenceTags = useMemo(
     () => buildPreferenceProfile(selectedMovieIds, tags, externalMovies),
@@ -81,10 +125,16 @@ export default function Recommendation({ selectedMovieIds, externalMovies, tags,
       const result = await res.json();
       if (result.success) {
         setFeedbackSent(true);
-        if (window.umami) window.umami.track('feedback_submitted');
+        trackEvent('feedback_submitted', {
+          flow: 'a',
+          surface: 'recommendation_page',
+          length_bucket: feedbackLengthBucket(feedback),
+          delivery: 'web3forms_success',
+        });
       }
     } catch (e) {
       // 网络失败也没关系，localStorage 已经存了
+      trackEvent('feedback_error', { flow: 'a', surface: 'recommendation_page' });
     }
     setFeedbackSending(false);
   };
@@ -163,6 +213,7 @@ export default function Recommendation({ selectedMovieIds, externalMovies, tags,
               loading="lazy"
               decoding="async"
               onError={(e) => {
+                trackPosterError({ flow: 'a', movieId: movie.id, source: 'tmdb_proxy', surface: 'recommendation_list' });
                 e.target.style.display = 'none';
                 e.target.parentElement.querySelector('.rec-poster-fallback').style.display = 'flex';
               }}
@@ -182,6 +233,16 @@ export default function Recommendation({ selectedMovieIds, externalMovies, tags,
                 <p className="match-reasons">因为你反复选择了：{movie.matchReasons.join(' · ')}</p>
               )}
               <p className="rec-desc">{movie.description}</p>
+              <div className="feedback-actions" aria-label={`反馈${movie.title}的推荐结果`}>
+                {FEEDBACK_ACTIONS.map((action) => (
+                  <button
+                    type="button"
+                    key={action.key}
+                    className={movieFeedback[movie.id] === action.key ? 'active' : ''}
+                    onClick={() => submitMovieFeedback(movie, action.key, i + 1)}
+                  >{action.label}</button>
+                ))}
+              </div>
             </div>
           </div>
         ))}
@@ -211,6 +272,7 @@ export default function Recommendation({ selectedMovieIds, externalMovies, tags,
                   loading="lazy"
                   decoding="async"
                   onError={(e) => {
+                    trackPosterError({ flow: 'a', movieId: movie.id, source: 'tmdb_dynamic', surface: 'tmdb_similar' });
                     e.target.style.display = 'none';
                     e.target.parentElement.querySelector('.rec-poster-fallback').style.display = 'flex';
                   }}

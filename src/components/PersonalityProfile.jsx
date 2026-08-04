@@ -3,7 +3,7 @@ import {
   calculatePersonalityScore, getPersonalityNarrative,
   getDimensionText, buildPreferenceProfile, DIMENSIONS,
 } from '../utils/personalityEngine';
-import { trackEvent, trackEventOnce } from '../utils/analytics';
+import { feedbackLengthBucket, trackEvent, trackEventOnce, trackStepComplete } from '../utils/analytics';
 
 const ShareCard = lazy(() => import('./ShareCard'));
 
@@ -93,12 +93,13 @@ export default function PersonalityProfile({ tags, selectedMovieIds, externalMov
   }, []);
 
   useEffect(() => {
-    trackEventOnce('result_view', {
+    trackEventOnce('profile_view', {
       flow: 'a',
       result_type: 'personality_profile',
       selected_movie_count: selectedMovieIds.length,
       tag_count: tags.length,
-    }, 'result_view:a');
+      top_dimension: sortedDims?.[0]?.[0],
+    }, 'profile_view:a');
   }, []);
 
   const sortedDims = useMemo(
@@ -115,9 +116,14 @@ export default function PersonalityProfile({ tags, selectedMovieIds, externalMov
     const content = generateShareContent();
     setShareText(content);
     navigator.clipboard.writeText(content)
-      .then(() => setToast('分享文案已复制'))
-      .catch(() => setToast('复制失败，请长按下方文案复制'));
-    trackEvent('share', { flow: 'a', share_type: 'copy_text', result_type: 'personality_profile' });
+      .then(() => {
+        setToast('分享文案已复制');
+        trackEvent('share', { flow: 'a', share_type: 'copy_text', result_type: 'personality_profile' });
+      })
+      .catch(() => {
+        setToast('复制失败，请长按下方文案复制');
+        trackEvent('share_error', { flow: 'a', share_type: 'copy_text' });
+      });
   };
 
   useEffect(() => {
@@ -130,7 +136,11 @@ export default function PersonalityProfile({ tags, selectedMovieIds, externalMov
     const newLiked = !liked;
     setLiked(newLiked);
     localStorage.setItem('filmmirror_liked', String(newLiked));
-    if (newLiked && window.umami) window.umami.track('like_result');
+    trackEvent('profile_reaction', {
+      flow: 'a',
+      action: newLiked ? 'like' : 'unlike',
+      result_type: 'personality_profile',
+    });
   };
 
   const handleFeedback = async () => {
@@ -151,9 +161,16 @@ export default function PersonalityProfile({ tags, selectedMovieIds, externalMov
       const result = await res.json();
       if (result.success) {
         setFeedbackSent(true);
-        if (window.umami) window.umami.track('feedback_submitted');
+        trackEvent('feedback_submitted', {
+          flow: 'a',
+          surface: 'personality_profile',
+          length_bucket: feedbackLengthBucket(feedback),
+          delivery: 'web3forms_success',
+        });
       }
-    } catch (e) {}
+    } catch (e) {
+      trackEvent('feedback_error', { flow: 'a', surface: 'personality_profile' });
+    }
     setFeedbackSending(false);
   };
 
@@ -245,7 +262,10 @@ export default function PersonalityProfile({ tags, selectedMovieIds, externalMov
 
       {/* 分享结果卡入口 */}
       <div className="share-actions animate-fade-up" style={{ animationDelay: '0.6s' }}>
-        <button className="btn btn-primary" onClick={() => setShowCard(true)}>
+        <button className="btn btn-primary" onClick={() => {
+          trackEvent('share_card_open', { flow: 'a', result_type: 'personality_profile' });
+          setShowCard(true);
+        }}>
           🎫 生成分享卡
         </button>
         <button className="btn btn-secondary" onClick={copyShareText}>
@@ -284,7 +304,10 @@ export default function PersonalityProfile({ tags, selectedMovieIds, externalMov
       )}
 
       <div style={{ textAlign: 'center', marginTop: 40, animationDelay: '0.7s' }} className="animate-fade-up">
-        <button className="btn btn-primary" onClick={() => onNext(scores)}>
+        <button className="btn btn-primary" onClick={() => {
+          trackStepComplete('a', 'profile', { top_dimension: sortedDims[0]?.[0] });
+          onNext(scores);
+        }}>
           查看推荐与职场关联 →
         </button>
       </div>
