@@ -1,7 +1,11 @@
-const APP_VERSION = 'p4.0';
+const APP_VERSION = 'p4.1';
 const ANALYTICS_SCHEMA_VERSION = 2;
-const pendingTimers = new Set();
 const memoryOnceKeys = new Set();
+const queuedOnceKeys = new Set();
+const eventQueue = [];
+const MAX_QUEUE_SIZE = 250;
+let flushTimer;
+let lifecycleListenersRegistered = false;
 
 function randomId(prefix) {
   try {
@@ -65,21 +69,79 @@ function normalizeProperties(properties) {
   );
 }
 
-function dispatch(name, payload, retriesLeft = 3) {
-  if (typeof window === 'undefined') return;
-  if (window.umami?.track) {
-    window.umami.track(name, payload);
-    return;
+function hasSentOnce(storageKey) {
+  try {
+    return sessionStorage.getItem(storageKey) === '1';
+  } catch {
+    return memoryOnceKeys.has(storageKey);
   }
-  if (retriesLeft <= 0) return;
-  const timer = window.setTimeout(() => {
-    pendingTimers.delete(timer);
-    dispatch(name, payload, retriesLeft - 1);
-  }, 700);
-  pendingTimers.add(timer);
 }
 
-export function trackEvent(name, properties = {}) {
+function markSentOnce(storageKey) {
+  if (!storageKey) return;
+  try {
+    sessionStorage.setItem(storageKey, '1');
+  } catch {
+    memoryOnceKeys.add(storageKey);
+  }
+  queuedOnceKeys.delete(storageKey);
+}
+
+function sendToUmami(event) {
+  if (!window.umami?.track) return false;
+  try {
+    window.umami.track(event.name, event.payload);
+    markSentOnce(event.onceKey);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function scheduleFlush(delay = 800) {
+  if (typeof window === 'undefined' || flushTimer) return;
+  flushTimer = window.setTimeout(() => {
+    flushTimer = undefined;
+    flushQueue();
+  }, delay);
+}
+
+function flushQueue() {
+  if (typeof window === 'undefined' || eventQueue.length === 0) return;
+  while (eventQueue.length > 0) {
+    if (!sendToUmami(eventQueue[0])) {
+      scheduleFlush();
+      return;
+    }
+    eventQueue.shift();
+  }
+}
+
+function registerLifecycleFlush() {
+  if (typeof window === 'undefined' || lifecycleListenersRegistered) return;
+  lifecycleListenersRegistered = true;
+  window.addEventListener('load', flushQueue);
+  window.addEventListener('online', flushQueue);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') flushQueue();
+  });
+}
+
+function dispatch(name, payload, onceKey = '') {
+  if (typeof window === 'undefined') return;
+  registerLifecycleFlush();
+  const event = { name, payload, onceKey };
+  if (sendToUmami(event)) return;
+
+  if (eventQueue.length >= MAX_QUEUE_SIZE) {
+    const dropped = eventQueue.shift();
+    if (dropped?.onceKey) queuedOnceKeys.delete(dropped.onceKey);
+  }
+  eventQueue.push(event);
+  scheduleFlush(250);
+}
+
+export function trackEvent(name, properties = {}, onceKey = '') {
   if (typeof window === 'undefined') return;
   const flowInstanceId = properties.flow ? getFlowInstanceId(properties.flow) : '';
   dispatch(name, normalizeProperties({
@@ -90,19 +152,14 @@ export function trackEvent(name, properties = {}) {
     path: window.location.pathname,
     ...campaignProperties(),
     ...properties,
-  }));
+  }), onceKey);
 }
 
 export function trackEventOnce(name, properties = {}, key = name) {
   const storageKey = `filmmirror_event_once:${key}`;
-  try {
-    if (sessionStorage.getItem(storageKey)) return;
-    sessionStorage.setItem(storageKey, '1');
-  } catch {
-    if (memoryOnceKeys.has(storageKey)) return;
-    memoryOnceKeys.add(storageKey);
-  }
-  trackEvent(name, properties);
+  if (hasSentOnce(storageKey) || queuedOnceKeys.has(storageKey)) return;
+  queuedOnceKeys.add(storageKey);
+  trackEvent(name, properties, storageKey);
 }
 
 export function trackFlowStart(flow) {
