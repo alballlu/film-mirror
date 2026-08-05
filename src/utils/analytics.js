@@ -1,4 +1,4 @@
-const APP_VERSION = 'p4.1';
+const APP_VERSION = 'p4.1.1';
 const ANALYTICS_SCHEMA_VERSION = 2;
 const memoryOnceKeys = new Set();
 const queuedOnceKeys = new Set();
@@ -156,7 +156,9 @@ export function trackEvent(name, properties = {}, onceKey = '') {
 }
 
 export function trackEventOnce(name, properties = {}, key = name) {
-  const storageKey = `filmmirror_event_once:${key}`;
+  // Namespace the marker by release so stale P4.0 markers cannot suppress
+  // events after the delivery mechanism is fixed or an event is redefined.
+  const storageKey = `filmmirror_event_once:${APP_VERSION}:${key}`;
   if (hasSentOnce(storageKey) || queuedOnceKeys.has(storageKey)) return;
   queuedOnceKeys.add(storageKey);
   trackEvent(name, properties, storageKey);
