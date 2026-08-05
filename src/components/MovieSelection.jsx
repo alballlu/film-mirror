@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import movies from '../data/movies.json';
 import { usePosterContext } from '../context/PosterContext';
 import { searchTMDBMulti, getPosterUrl } from '../services/tmdb';
+import { trackEvent, trackPosterError } from '../utils/analytics';
 
 const CATEGORIES = [
   { key: 'all', label: '全部' },
@@ -21,6 +22,12 @@ function MovieCard({ movie, selected, posterUrl, animationDelay, onToggle }) {
 
   const handlePosterError = () => {
     setPosterFailed(true);
+    trackPosterError({
+      flow: 'a',
+      movieId: movie.id,
+      source: movie.isTMDB ? 'tmdb_dynamic' : 'tmdb_proxy',
+      surface: 'movie_selection',
+    });
   };
 
   // 重置失败状态当 posterUrl 变化
@@ -202,6 +209,9 @@ export default function MovieSelection({ selectedMovies: initial, onNext, onBack
         const next = new Set(prev);
         if (next.has(id)) {
           next.delete(id);
+          trackEvent('movie_selection', {
+            flow: 'a', action: 'remove', movie_id: id, is_external: Boolean(movieData), selected_count: next.size,
+          });
           // 同时清理外部电影记录
           setExtMoviesMap((em) => {
             const n = { ...em };
@@ -211,6 +221,9 @@ export default function MovieSelection({ selectedMovies: initial, onNext, onBack
         } else {
           if (next.size >= 12) return prev;
           next.add(id);
+          trackEvent('movie_selection', {
+            flow: 'a', action: 'add', movie_id: id, is_external: Boolean(movieData), selected_count: next.size,
+          });
           // 外部电影存到 map 中
           if (movieData) {
             setExtMoviesMap((em) => ({ ...em, [id]: movieData }));

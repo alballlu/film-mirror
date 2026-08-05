@@ -2,7 +2,7 @@ import { Navigate, Routes, Route, useNavigate } from 'react-router-dom';
 import { useState, useCallback, useEffect, lazy, Suspense } from 'react';
 import HomePage from './components/HomePage';
 import { enrichExternalMoviesBatch } from './services/tmdb';
-import { getFlowElapsedSeconds, trackEvent, trackEventOnce } from './utils/analytics';
+import { getFlowElapsedSeconds, trackEvent, trackEventOnce, trackStepComplete } from './utils/analytics';
 
 // 重型页面懒加载 — 减少首屏 JS 体积
 const MovieSelection = lazy(() => import('./components/MovieSelection'));
@@ -82,6 +82,10 @@ export default function App() {
       externalMovies: externalMovies || {},
     });
     navigate('/flow-a/step2');
+    trackStepComplete('a', 'movies', {
+      selected_movie_count: movies.length,
+      external_movie_count: Object.keys(externalMovies || {}).length,
+    });
 
     // 后台异步：keyword enrichment
     const tmdbCount = Object.keys(externalMovies || {}).length;
@@ -130,6 +134,10 @@ export default function App() {
                     tag_count: tags.length,
                     elapsed_seconds: getFlowElapsedSeconds('a'),
                   });
+                  trackStepComplete('a', 'tags', {
+                    selected_movie_count: flowAData.selectedMovies.length,
+                    tag_count: tags.length,
+                  });
                   navigate('/flow-a/step3');
                 }}
                 onBack={() => navigate('/flow-a/step1')}
@@ -176,6 +184,11 @@ export default function App() {
                     avoidance_count: data.avoidances?.length || 0,
                     session: data.session,
                     elapsed_seconds: getFlowElapsedSeconds('b'),
+                  });
+                  trackStepComplete('b', 'context', {
+                    genre_count: data.genres?.length || 0,
+                    avoidance_count: data.avoidances?.length || 0,
+                    session: data.session,
                   });
                   navigate('/flow-b/step2');
                 }}

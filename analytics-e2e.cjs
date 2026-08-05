@@ -45,7 +45,10 @@ const { chromium } = require('playwright');
     'visit',
     'flow_start',
     'input_complete',
-    'result_view',
+    'step_complete',
+    'recommendation_view',
+    'flow_complete',
+    'recommendation_impression',
     'recommendation_feedback',
     'reroll',
     'share',
@@ -54,6 +57,19 @@ const { chromium } = require('playwright');
   ];
   const missing = required.filter((name) => !eventNames.includes(name));
   if (missing.length) throw new Error(`Missing analytics events: ${missing.join(', ')}`);
+
+  const everyEventHasContext = events.every((event) =>
+    event.properties?.app_version === 'p4.0' &&
+    event.properties?.analytics_schema === 2 &&
+    event.properties?.session_id &&
+    event.properties?.utm_source === 'qa'
+  );
+  if (!everyEventHasContext) throw new Error('Some events are missing analytics v2 context properties');
+
+  const feedbackEvent = events.find((event) => event.name === 'recommendation_feedback');
+  if (!feedbackEvent?.properties?.movie_id || !feedbackEvent?.properties?.track) {
+    throw new Error('Recommendation feedback is missing movie_id or track');
+  }
 
   console.log(JSON.stringify({ eventNames, events }, null, 2));
   await browser.close();
