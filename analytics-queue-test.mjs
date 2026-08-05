@@ -19,6 +19,10 @@ globalThis.window = {
 
 const { trackEventOnce } = await import('./src/utils/analytics.js');
 
+// P4.0 wrote this marker before delivery. It must not suppress P4.1.1 events.
+values.set('filmmirror_event_once:recommendation_view:a', '1');
+values.set('filmmirror_event_once:flow_complete:a', '1');
+
 trackEventOnce('recommendation_view', { flow: 'a' }, 'recommendation_view:a');
 trackEventOnce('flow_complete', { flow: 'a' }, 'flow_complete:a');
 trackEventOnce('flow_complete', { flow: 'a' }, 'flow_complete:a');
@@ -32,10 +36,10 @@ const names = received.map(event => event.name);
 if (names.join(',') !== 'recommendation_view,flow_complete') {
   throw new Error(`Queued events were missing or duplicated: ${names.join(',')}`);
 }
-if (!received.every(event => event.properties.app_version === 'p4.1')) {
-  throw new Error('Queued events did not use the P4.1 analytics version');
+if (!received.every(event => event.properties.app_version === 'p4.1.1')) {
+  throw new Error('Queued events did not use the P4.1.1 analytics version');
 }
-if (!values.has('filmmirror_event_once:recommendation_view:a') || !values.has('filmmirror_event_once:flow_complete:a')) {
+if (!values.has('filmmirror_event_once:p4.1.1:recommendation_view:a') || !values.has('filmmirror_event_once:p4.1.1:flow_complete:a')) {
   throw new Error('Once markers were not written after successful delivery');
 }
 
