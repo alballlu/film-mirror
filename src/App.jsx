@@ -5,12 +5,12 @@ import { enrichExternalMoviesBatch } from './services/tmdb';
 import { getFlowElapsedSeconds, trackEvent, trackEventOnce, trackStepComplete } from './utils/analytics';
 
 // 重型页面懒加载 — 减少首屏 JS 体积
-const MovieSelection = lazy(() => import('./components/MovieSelection'));
-const TagConfirmation = lazy(() => import('./components/TagConfirmation'));
-const PersonalityProfile = lazy(() => import('./components/PersonalityProfile'));
-const Recommendation = lazy(() => import('./components/Recommendation'));
-const DailyContext = lazy(() => import('./components/DailyContext'));
-const DailyResult = lazy(() => import('./components/DailyResult'));
+const PreferenceMoviePicker = lazy(() => import('./components/PreferenceMoviePicker'));
+const PreferenceTagReview = lazy(() => import('./components/PreferenceTagReview'));
+const MoviePersonalityProfile = lazy(() => import('./components/MoviePersonalityProfile'));
+const ProfileRecommendationResult = lazy(() => import('./components/ProfileRecommendationResult'));
+const WatchContextForm = lazy(() => import('./components/WatchContextForm'));
+const InstantRecommendationResult = lazy(() => import('./components/InstantRecommendationResult'));
 const PROFILE_ALGORITHM_VERSION = 2;
 
 // 路由级 loading fallback
@@ -30,7 +30,7 @@ function PageLoader() {
 
 export default function App() {
   const navigate = useNavigate();
-  const [flowAData, setFlowAData] = useState(() => {
+  const [profileJourneyState, setProfileJourneyState] = useState(() => {
     try {
       const saved = sessionStorage.getItem('filmmirror_flow_a');
       if (saved) {
@@ -42,7 +42,7 @@ export default function App() {
     } catch {}
     return { selectedMovies: [], tags: [], scores: null, externalMovies: {}, profileVersion: PROFILE_ALGORITHM_VERSION };
   });
-  const [flowBData, setFlowBData] = useState(() => {
+  const [instantPickState, setInstantPickState] = useState(() => {
     try {
       return JSON.parse(sessionStorage.getItem('filmmirror_flow_b')) || null;
     } catch {
@@ -55,29 +55,29 @@ export default function App() {
     trackEventOnce('visit', {}, 'visit');
   }, []);
 
-  const updateFlowA = useCallback((partial) => {
-    setFlowAData((prev) => ({ ...prev, ...partial }));
+  const updateProfileJourney = useCallback((partial) => {
+    setProfileJourneyState((prev) => ({ ...prev, ...partial }));
   }, []);
 
   useEffect(() => {
-    sessionStorage.setItem('filmmirror_flow_a', JSON.stringify(flowAData));
-  }, [flowAData]);
+    sessionStorage.setItem('filmmirror_flow_a', JSON.stringify(profileJourneyState));
+  }, [profileJourneyState]);
 
   useEffect(() => {
-    if (flowBData) sessionStorage.setItem('filmmirror_flow_b', JSON.stringify(flowBData));
+    if (instantPickState) sessionStorage.setItem('filmmirror_flow_b', JSON.stringify(instantPickState));
     else sessionStorage.removeItem('filmmirror_flow_b');
-  }, [flowBData]);
+  }, [instantPickState]);
 
-  const startFlowA = () => navigate('/flow-a/step1');
-  const startFlowB = () => {
-    setFlowBData(null);
+  const startProfileJourney = () => navigate('/flow-a/step1');
+  const startInstantPick = () => {
+    setInstantPickState(null);
     navigate('/flow-b/step1');
   };
   const goHome = () => navigate('/');
 
   // Step1 → Step2：外部 TMDB 电影 keywords 异步 enrichment
   const handleMoviesSelected = useCallback((movies, externalMovies) => {
-    updateFlowA({
+    updateProfileJourney({
       selectedMovies: movies,
       externalMovies: externalMovies || {},
     });
@@ -93,12 +93,12 @@ export default function App() {
       setEnriching(true);
       enrichExternalMoviesBatch(externalMovies)
         .then((enriched) => {
-          updateFlowA({ externalMovies: enriched });
+          updateProfileJourney({ externalMovies: enriched });
           setEnriching(false);
         })
         .catch(() => setEnriching(false));
     }
-  }, [navigate, updateFlowA]);
+  }, [navigate, updateProfileJourney]);
 
   return (
     <div className="app-container">
@@ -106,13 +106,13 @@ export default function App() {
         <Routes>
           <Route
             path="/"
-            element={<HomePage onDeepClick={startFlowA} onDailyClick={startFlowB} />}
+            element={<HomePage onDeepClick={startProfileJourney} onDailyClick={startInstantPick} />}
           />
           <Route
             path="/flow-a/step1"
             element={
-              <MovieSelection
-                selectedMovies={flowAData.selectedMovies}
+              <PreferenceMoviePicker
+                selectedMovies={profileJourneyState.selectedMovies}
                 onNext={handleMoviesSelected}
                 onBack={goHome}
               />
@@ -121,21 +121,21 @@ export default function App() {
           <Route
             path="/flow-a/step2"
             element={
-              flowAData.selectedMovies.length >= 8 ? <TagConfirmation
-                selectedMovieIds={flowAData.selectedMovies}
-                externalMovies={flowAData.externalMovies}
+              profileJourneyState.selectedMovies.length >= 8 ? <PreferenceTagReview
+                selectedMovieIds={profileJourneyState.selectedMovies}
+                externalMovies={profileJourneyState.externalMovies}
                 enriching={enriching}
                 onNext={(tags) => {
-                  updateFlowA({ tags, scores: null, profileVersion: PROFILE_ALGORITHM_VERSION });
+                  updateProfileJourney({ tags, scores: null, profileVersion: PROFILE_ALGORITHM_VERSION });
                   trackEvent('input_complete', {
                     flow: 'a',
-                    selected_movie_count: flowAData.selectedMovies.length,
-                    external_movie_count: Object.keys(flowAData.externalMovies || {}).length,
+                    selected_movie_count: profileJourneyState.selectedMovies.length,
+                    external_movie_count: Object.keys(profileJourneyState.externalMovies || {}).length,
                     tag_count: tags.length,
                     elapsed_seconds: getFlowElapsedSeconds('a'),
                   });
                   trackStepComplete('a', 'tags', {
-                    selected_movie_count: flowAData.selectedMovies.length,
+                    selected_movie_count: profileJourneyState.selectedMovies.length,
                     tag_count: tags.length,
                   });
                   navigate('/flow-a/step3');
@@ -147,12 +147,12 @@ export default function App() {
           <Route
             path="/flow-a/step3"
             element={
-              flowAData.tags.length > 0 ? <PersonalityProfile
-                tags={flowAData.tags}
-                selectedMovieIds={flowAData.selectedMovies}
-                externalMovies={flowAData.externalMovies}
+              profileJourneyState.tags.length > 0 ? <MoviePersonalityProfile
+                tags={profileJourneyState.tags}
+                selectedMovieIds={profileJourneyState.selectedMovies}
+                externalMovies={profileJourneyState.externalMovies}
                 onNext={(scores) => {
-                  updateFlowA({ scores });
+                  updateProfileJourney({ scores });
                   navigate('/flow-a/step4');
                 }}
                 onBack={() => navigate('/flow-a/step2')}
@@ -162,11 +162,11 @@ export default function App() {
           <Route
             path="/flow-a/step4"
             element={
-              flowAData.scores ? <Recommendation
-                selectedMovieIds={flowAData.selectedMovies}
-                externalMovies={flowAData.externalMovies}
-                tags={flowAData.tags}
-                scores={flowAData.scores}
+              profileJourneyState.scores ? <ProfileRecommendationResult
+                selectedMovieIds={profileJourneyState.selectedMovies}
+                externalMovies={profileJourneyState.externalMovies}
+                tags={profileJourneyState.tags}
+                scores={profileJourneyState.scores}
                 onBack={() => navigate('/flow-a/step3')}
                 onRestart={goHome}
               /> : <Navigate to="/flow-a/step3" replace />
@@ -175,9 +175,9 @@ export default function App() {
           <Route
             path="/flow-b/step1"
             element={
-              <DailyContext
+              <WatchContextForm
                 onNext={(data) => {
-                  setFlowBData(data);
+                  setInstantPickState(data);
                   trackEvent('input_complete', {
                     flow: 'b',
                     genre_count: data.genres?.length || 0,
@@ -199,8 +199,8 @@ export default function App() {
           <Route
             path="/flow-b/step2"
             element={
-              flowBData ? <DailyResult
-                data={flowBData}
+              instantPickState ? <InstantRecommendationResult
+                data={instantPickState}
                 onBack={() => navigate('/flow-b/step1')}
                 onRestart={goHome}
               /> : <Navigate to="/flow-b/step1" replace />

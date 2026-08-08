@@ -345,10 +345,6 @@ export function getPersonalityNarrative(scores, preferenceTags = [], selectedCou
   };
 }
 
-export function getPersonalitySummary(scores, topTags) {
-  return getPersonalityNarrative(scores, topTags).shareText;
-}
-
 export function getDimensionText(dimension, score, preferenceTags = []) {
   const level = score >= 70 ? 'high' : score >= 45 ? 'mid' : 'low';
   const pool = DIMENSION_COPY[dimension]?.[level] || [];
@@ -496,22 +492,6 @@ export function getPersonalityName(scores, preferenceTags = []) {
     declaration,
     keywords: kws,
   };
-}
-
-export function resonanceScore(movieTags, userScores) {
-  const movieDims = {};
-  for (const tag of movieTags) {
-    const mapping = tagMapping[tag] || {};
-    for (const [dim, weight] of Object.entries(mapping)) {
-      movieDims[dim] = (movieDims[dim] || 0) + weight;
-    }
-  }
-  const totalWeight = Object.values(movieDims).reduce((s, w) => s + w, 0) || 1;
-  let score = 0;
-  for (const [dim, weight] of Object.entries(movieDims)) {
-    score += (weight / totalWeight) * (userScores[dim] || 0);
-  }
-  return score;
 }
 
 /**

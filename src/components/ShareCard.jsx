@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
 import html2canvas from 'html2canvas';
 import { QRCodeSVG } from 'qrcode.react';
-import { buildPreferenceProfile, getPersonalityName, pickSharePosters } from '../utils/personalityEngine';
+import { buildPreferenceProfile, getPersonalityName, pickSharePosters } from '../utils/movieProfileEngine';
 import { usePosterContext } from '../context/PosterContext';
 import { trackEvent } from '../utils/analytics';
 

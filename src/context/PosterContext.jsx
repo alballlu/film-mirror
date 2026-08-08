@@ -84,16 +84,6 @@ export function PosterProvider({ children }) {
   );
 }
 
-export function usePoster(movieId) {
-  const { posters } = useContext(PosterContext);
-  return posters[movieId] || '';
-}
-
-export function usePosterSources(movieId) {
-  const { posterSources } = useContext(PosterContext);
-  return posterSources[movieId] || [];
-}
-
 export function usePosterContext() {
   return useContext(PosterContext);
 }

@@ -6,7 +6,3 @@ dist/
 .env.local
 .env.production
 .DS_Store
-
-# Cloudflare Functions 构建产物（由 scripts/inject-env.js 从 .template.js 生成）
-functions/api/tmdb-proxy.js
-functions/api/health.js

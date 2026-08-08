@@ -15,7 +15,7 @@ function randomId(prefix) {
   }
 }
 
-export function getSessionId() {
+function getSessionId() {
   if (typeof window === 'undefined') return 'server';
   try {
     const saved = sessionStorage.getItem('filmmirror_session_id');

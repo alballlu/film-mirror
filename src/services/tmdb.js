@@ -151,11 +151,6 @@ async function fetchPoster(movie) {
   }
 }
 
-export async function fetchPosterForMovie(movie) {
-  if (cache[movie.id] !== undefined) return cache[movie.id];
-  return fetchPoster(movie);
-}
-
 // ── 海报队列节流（并发 batch + 超时控制）─────────────────────
 const RATE_QUEUE = [];
 const pendingPosters = new Map();
@@ -212,7 +207,7 @@ export function fetchPosterThrottled(movie) {
 }
 
 // ── TMDB 流派 ID → 本地 tag ──────────────────────────────────
-export function genreIdsToTags(genreIds) {
+function genreIdsToTags(genreIds) {
   const tags = [];
   for (const gid of genreIds) {
     const mapped = tmdbGenreMap[String(gid)];
@@ -257,7 +252,7 @@ const KEYWORD_TO_TAG_MAP = {
   'fate': '宿命', 'obsession': '执念',
 };
 
-export function keywordNamesToTags(keywordNames) {
+function keywordNamesToTags(keywordNames) {
   const tags = new Set();
   for (const kw of keywordNames) {
     const lower = kw.toLowerCase().trim();
@@ -274,7 +269,7 @@ export function keywordNamesToTags(keywordNames) {
 }
 
 // ── 获取单部 TMDB 电影的 keywords ─────────────────────────────
-export async function fetchTMDBKeywords(tmdbId) {
+async function fetchTMDBKeywords(tmdbId) {
   const cacheKey = `tmdb_kw_${tmdbId}`;
   try {
     const cached = sessionStorage.getItem(cacheKey);
@@ -306,7 +301,7 @@ export async function fetchTMDBKeywords(tmdbId) {
 }
 
 // ── 增强版外部电影对象 ──────────────────────────────────────
-export async function enrichExternalMovie(movie) {
+async function enrichExternalMovie(movie) {
   const tmdbId = String(movie.id).replace('tmdb_', '');
   const keywordNames = await fetchTMDBKeywords(tmdbId);
   const keywordTags = keywordNamesToTags(keywordNames);
