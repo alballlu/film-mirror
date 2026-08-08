@@ -21,7 +21,7 @@ const SESSIONS = [
 
 const AVOIDANCES = ['太沉重', '太吓人', '血腥暴力', '慢节奏', '恋爱主线', '开放结局'];
 
-export default function DailyContext({ onNext, onBack }) {
+export default function WatchContextForm({ onNext, onBack }) {
   const [effect, setEffect] = useState(null);
   const [genres, setGenres] = useState([]);
   const [session, setSession] = useState(null);

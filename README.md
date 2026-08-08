@@ -1,10 +1,22 @@
-# FilmMirror · 电影镜像
+# FilmMirror｜电影镜像
 
-通过用户喜欢的电影生成六维性格画像，并提供“今天看什么”的情境化推荐。
+FilmMirror 是一个电影人格画像与场景化推荐产品。用户可以通过喜欢的电影生成六维偏好画像，也可以根据当下的情绪、类型和时长要求快速获得观影推荐。
 
 - 正式地址：https://film-mirror.pages.dev/
 - 代码托管：GitHub
 - 唯一生产环境：Cloudflare Pages
+
+## 核心产品路径
+
+1. **电影人格画像**：选择电影 → 确认偏好标签 → 查看六维画像 → 获得匹配推荐。
+2. **即时观影推荐**：填写当下观影情境 → 获得场景化推荐 → 反馈、重选或分享。
+
+代码中的 `flow=a` 和 `flow=b` 仅作为历史埋点兼容标识：
+
+- `a`：电影人格画像
+- `b`：即时观影推荐
+
+不要直接修改这些值，否则会造成 Umami 历史数据断层。
 
 ## 本地开发
 
@@ -12,37 +24,48 @@
 npm install
 npm run dev
 npm run build
+npm run test:analytics
 ```
 
-本地 Vite 只负责前端页面；TMDB 搜索和海报由 Cloudflare Pages Functions 提供。前端不保存、注入或直连任何 TMDB Key。
+本地 Vite 只负责前端页面。TMDB 搜索、推荐和海报由 Cloudflare Pages Functions 提供，前端不会保存或暴露 TMDB API Key。
 
 ## Cloudflare Pages 部署
 
-1. 在 Cloudflare Pages 连接 GitHub 仓库 `alballlu/film-mirror`，生产分支选择 `main`。
-2. 构建命令填写 `npm run build`，输出目录填写 `dist`。
-3. 在 Settings → Variables and Secrets 中新增加密变量 `TMDB_API_KEY`，并同时应用于 Production 与 Preview。
-4. 重新部署后检查：
-   - `/api/health` 应返回 HTTP 200 与 `"status":"ok"`。
-   - `/api/tmdb-proxy?action=search&query=Inception&language=zh-CN` 应返回 JSON。
-   - `/api/tmdb-image?path=/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg` 应返回 `image/*`。
+1. Cloudflare Pages 连接 GitHub 仓库 `alballlu/film-mirror`，生产分支使用 `main`。
+2. 构建命令为 `npm run build`，输出目录为 `dist`。
+3. 在 Production 与 Preview 环境中配置加密变量 `TMDB_API_KEY`。
+4. 部署后检查：
+   - `/api/health`
+   - `/api/tmdb-proxy?action=search&query=Inception&language=zh-CN`
+   - `/api/tmdb-image?path=/9gk7adHYeDvHkCSEqAvQNLV5Uge.jpg`
 
-不再使用 GitHub Pages 或 Vercel。GitHub 只承担代码托管、分支管理和版本追踪。
+GitHub Pages 与 Vercel 已停用，GitHub 只承担代码托管、分支管理和版本追踪。
+
+## 目录说明
+
+```text
+src/components/     产品页面和共享组件
+src/utils/          推荐、画像和埋点逻辑
+src/services/       TMDB 数据服务
+src/data/           正式运行所需数据
+functions/api/      Cloudflare Pages Functions
+tests/analytics/    埋点队列及流程测试
+docs/               产品、部署和分析文档
+docs/archive/       不参与运行的历史材料
+```
+
+更详细的代码命名和兼容约束参见 `docs/CODEBASE_GUIDE.md`，密钥及接口约定参见 `docs/SECURITY.md`。
 
 ## 海报预取
 
-运行时只会为用户当前看到的电影请求海报，不再进入首页就遍历全部 172 部电影。为了进一步减少首次访问请求，可在本地使用新的 TMDB Key 一次性补全 `tmdbPosterPath`：
+如需一次性补全本地电影数据的 `tmdbPosterPath`，可在本地临时设置 `TMDB_API_KEY` 后运行：
 
 ```bash
 node scripts/prefetch-posters.mjs
 ```
 
-运行前仅在当前终端设置 `TMDB_API_KEY`；不要把 Key 写进源码或提交到 GitHub。
-
-## 数据与复盘
-
-- 产品复盘与四周路线：`docs/PRODUCT_REVIEW.md`
-- 部署与验收清单：`docs/DEPLOYMENT_CHECKLIST.md`
+不要把 Key 写入源码或提交到 GitHub。
 
 ## 技术栈
 
-React 18、React Router 6、Vite 5、Recharts、Cloudflare Pages Functions、TMDB、Umami。
+React 18、React Router 6、Vite 5、Cloudflare Pages Functions、TMDB、Umami、Canvas Confetti、html2canvas。

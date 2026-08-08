@@ -2,7 +2,7 @@ import { lazy, Suspense, useState, useMemo, useEffect } from 'react';
 import {
   calculatePersonalityScore, getPersonalityNarrative,
   getDimensionText, buildPreferenceProfile, DIMENSIONS,
-} from '../utils/personalityEngine';
+} from '../utils/movieProfileEngine';
 import { feedbackLengthBucket, trackEvent, trackEventOnce, trackStepComplete } from '../utils/analytics';
 
 const ShareCard = lazy(() => import('./ShareCard'));
@@ -58,7 +58,7 @@ function PersonalityRadar({ data, animate }) {
   );
 }
 
-export default function PersonalityProfile({ tags, selectedMovieIds, externalMovies, onNext, onBack }) {
+export default function MoviePersonalityProfile({ tags, selectedMovieIds, externalMovies, onNext, onBack }) {
   const [expanded, setExpanded] = useState(null);
   const [animateChart, setAnimateChart] = useState(false);
   const [shareText, setShareText] = useState('');

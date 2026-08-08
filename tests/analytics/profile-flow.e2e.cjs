@@ -1,4 +1,4 @@
-const { chromium } = require('playwright');
+const { chromium } = require('playwright-core');
 
 (async () => {
   const browser = await chromium.launch({ channel: 'msedge', headless: true });

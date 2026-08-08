@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { getDailyRecommendations, generateInterpretation } from '../utils/dailyEngine';
+import { getDailyRecommendations, generateInterpretation } from '../utils/instantRecommendationEngine';
 import { usePosterContext } from '../context/PosterContext';
 import { fetchDailyCandidatePool, getPosterUrl } from '../services/tmdb';
 import ConfettiEffect from './ConfettiEffect';
@@ -20,7 +20,7 @@ const FEEDBACK_ACTIONS = [
 
 const REJECTION_REASONS = ['类型不对', '看过了', '太沉重', '节奏不合适', '单纯没眼缘'];
 
-export default function DailyResult({ data, onBack, onRestart }) {
+export default function InstantRecommendationResult({ data, onBack, onRestart }) {
   const [excludedIds, setExcludedIds] = useState([]);
   const [externalPool, setExternalPool] = useState([]);
   const [isExpanding, setIsExpanding] = useState(true);

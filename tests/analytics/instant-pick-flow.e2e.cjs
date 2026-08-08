@@ -1,4 +1,4 @@
-const { chromium } = require('playwright');
+const { chromium } = require('playwright-core');
 
 (async () => {
   const baseUrl = process.env.FILMMIRROR_BASE_URL || 'http://127.0.0.1:4176';
@@ -24,7 +24,7 @@ const { chromium } = require('playwright');
     body: '{"error":"test fallback"}',
   }));
 
-  await page.goto(`${baseUrl}/?utm_source=qa&utm_medium=test&utm_campaign=analytics_v1`, {
+  await page.goto(`${baseUrl}/?utm_source=qa&utm_medium=test&utm_campaign=analytics_v2`, {
     waitUntil: 'domcontentloaded',
   });
   await page.getByText('今天该看什么？').click();
@@ -59,7 +59,7 @@ const { chromium } = require('playwright');
   if (missing.length) throw new Error(`Missing analytics events: ${missing.join(', ')}`);
 
   const everyEventHasContext = events.every((event) =>
-    event.properties?.app_version === 'p4.0' &&
+    event.properties?.app_version === 'p4.1.1' &&
     event.properties?.analytics_schema === 2 &&
     event.properties?.session_id &&
     event.properties?.utm_source === 'qa'

@@ -119,7 +119,7 @@ function MovieCard({ movie, selected, posterUrl, animationDelay, onToggle }) {
   );
 }
 
-export default function MovieSelection({ selectedMovies: initial, onNext, onBack }) {
+export default function PreferenceMoviePicker({ selectedMovies: initial, onNext, onBack }) {
   const [selected, setSelected] = useState(() => new Set(initial));
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');

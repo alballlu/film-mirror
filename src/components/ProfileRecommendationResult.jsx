@@ -1,6 +1,6 @@
 import { useMemo, useRef, useEffect, useState } from 'react';
 import movies from '../data/movies.json';
-import { buildPreferenceProfile, getRecommendations, getCareerAdvice } from '../utils/personalityEngine';
+import { buildPreferenceProfile, getRecommendations, getCareerAdvice } from '../utils/movieProfileEngine';
 import { usePosterContext } from '../context/PosterContext';
 import { fetchSimilarTMDB, getPosterUrl } from '../services/tmdb';
 import {
@@ -18,7 +18,7 @@ const FEEDBACK_ACTIONS = [
   { key: 'dislike', label: '× 不想看' },
 ];
 
-export default function Recommendation({ selectedMovieIds, externalMovies, tags, scores, onBack, onRestart }) {
+export default function ProfileRecommendationResult({ selectedMovieIds, externalMovies, tags, scores, onBack, onRestart }) {
   const [animated, setAnimated] = useState(false);
   const { posters, ensurePosters } = usePosterContext();
   useEffect(() => { setTimeout(() => setAnimated(true), 200); }, []);

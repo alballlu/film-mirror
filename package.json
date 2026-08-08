@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:analytics": "node tests/analytics/event-queue.test.mjs",
+    "test:e2e:profile": "node tests/analytics/profile-flow.e2e.cjs",
+    "test:e2e:instant": "node tests/analytics/instant-pick-flow.e2e.cjs"
   },
   "dependencies": {
     "canvas-confetti": "^1.9.4",
@@ -20,6 +23,7 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "playwright-core": "^1.62.1",
     "vite": "^5.4.0"
   }
 }

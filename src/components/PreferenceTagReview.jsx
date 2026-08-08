@@ -1,9 +1,9 @@
 import { useEffect, useState, useMemo } from 'react';
 import movies from '../data/movies.json';
-import { extractTags } from '../utils/personalityEngine';
+import { extractTags } from '../utils/movieProfileEngine';
 import { usePosterContext } from '../context/PosterContext';
 
-export default function TagConfirmation({ selectedMovieIds, externalMovies, enriching, onNext, onBack }) {
+export default function PreferenceTagReview({ selectedMovieIds, externalMovies, enriching, onNext, onBack }) {
   const { posters, ensurePosters } = usePosterContext();
   const extracted = useMemo(() => extractTags(selectedMovieIds, externalMovies), [selectedMovieIds, externalMovies]);
   const [tags, setTags] = useState(extracted.map((t) => t.tag));

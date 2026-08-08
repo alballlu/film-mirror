@@ -53,7 +53,7 @@ function evaluateMovie(movie, selections) {
   return { ...movie, matchScore, genreHits, effectHits, blockedHits };
 }
 
-export function rankDailyCandidates(selections, externalPool = [], excludeIds = []) {
+function rankDailyCandidates(selections, externalPool = [], excludeIds = []) {
   const unique = new Map([...movies, ...externalPool].map((movie) => [String(movie.id), movie]));
   return [...unique.values()]
     .filter((movie) => !excludeIds.map(String).includes(String(movie.id)))
