@@ -5,6 +5,7 @@ const ENDPOINTS = {
   discover: '/discover/movie',
   keywords: '/movie/[id]/keywords',
   recommendations: '/movie/[id]/recommendations',
+  details: '/movie/[id]',
 };
 
 const CACHE_TTL = {
@@ -12,6 +13,7 @@ const CACHE_TTL = {
   discover: 6 * 60 * 60,
   keywords: 24 * 60 * 60,
   recommendations: 6 * 60 * 60,
+  details: 24 * 60 * 60,
 };
 
 export async function onRequest(context) {
